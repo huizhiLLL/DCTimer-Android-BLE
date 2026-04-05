@@ -11,6 +11,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.*;
 import android.graphics.Paint.Align;
+import android.text.TextUtils;
 import android.util.Log;
 
 import com.dctimer.APP;
@@ -134,6 +135,9 @@ public class Scrambler {
     }
 
     public String getCubeState() {
+        if (TextUtils.isEmpty(cubeState) && is333Scramble() && !TextUtils.isEmpty(scramble)) {
+            return Tools.fromScramble(scramble);
+        }
         return cubeState;
     }
 

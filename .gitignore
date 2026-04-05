@@ -1,0 +1,38 @@
+# Gradle / build
+/.gradle/
+/build/
+**/build/
+/.kotlin/
+
+# Android Studio / IntelliJ
+/.idea/
+*.iml
+
+# Local SDK / machine-specific config
+/local.properties
+
+# APK / bundle outputs
+*.apk
+*.ap_
+*.aab
+
+# Signing / secrets
+*.jks
+*.keystore
+key.properties
+
+# Native / generated
+/.externalNativeBuild/
+/.cxx/
+/captures/
+
+# OS / misc
+.DS_Store
+Thumbs.db
+*.log
+
+# Local reference sources
+/ref/
+
+# Optional local agent instructions
+/AGENTS.md

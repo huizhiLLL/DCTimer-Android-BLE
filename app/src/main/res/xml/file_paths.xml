@@ -3,6 +3,6 @@
 
     <external-path
         name="file_path"
-        path="DCTimer/" />
+        path="DCTimer-BLE/" />
 
 </paths>

@@ -97,7 +97,7 @@ public class CubeStateDialog extends DialogFragment {
     }
 
     private void setImage() {
-        Bitmap bitmap = Utils.drawCubeState(cube.getCubeState());
+        Bitmap bitmap = Utils.drawCubeState3D(cube.getCubeState());
         if (bitmap != null)
             imageView.setImageBitmap(bitmap);
     }

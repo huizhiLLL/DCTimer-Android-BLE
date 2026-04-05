@@ -36,6 +36,8 @@ import android.widget.Toast;
 
 public class Utils {
     static String egOllAll = "PHUTLSA";
+    private static final String SOLVED_FACELET = "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB";
+    private static final Sticker[] STICKERS = createStickers();
 
     public static int grayScale(int color) {
         int red = (color >>> 16) & 0xff;
@@ -640,5 +642,263 @@ public class Utils {
             c.drawRect(a * 3 * dx[i] + offx, a * 3 * dy[i] + offy, a * 3 * (dx[i] + 1) + offx, a * 3 * (dy[i] + 1) + offy, p);
         }
         return bitmap;
+    }
+
+    public static Bitmap drawCubeState3D(String facelets) {
+        if (facelets == null || facelets.length() < 54) return null;
+        String center = new String(
+                new char[] {
+                        facelets.charAt(4),
+                        facelets.charAt(13),
+                        facelets.charAt(22),
+                        facelets.charAt(31),
+                        facelets.charAt(40),
+                        facelets.charAt(49)
+                }
+        );
+        byte[] f = new byte[54];
+        for (int i = 0; i < 54; i++) {
+            f[i] = (byte) center.indexOf(facelets.charAt(i));
+            if (f[i] == -1) {
+                f[i] = 6;
+            }
+        }
+        int[] color = {Color.WHITE, Color.RED, 0xff009900, Color.YELLOW, 0xffff9900, Color.BLUE, Color.GRAY};
+        Bitmap bitmap = Bitmap.createBitmap(APP.getPixel(260), APP.getPixel(220), Bitmap.Config.ARGB_8888);
+        Canvas c = new Canvas(bitmap);
+        c.drawColor(0);
+
+        Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        fillPaint.setStyle(Paint.Style.FILL);
+        Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        strokePaint.setStyle(Paint.Style.STROKE);
+        strokePaint.setColor(0xff000000);
+        strokePaint.setStrokeWidth(Math.max(1f, APP.dpi * 1.2f));
+        Paint shadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        shadowPaint.setStyle(Paint.Style.FILL);
+        shadowPaint.setColor(0x22000000);
+
+        float size = APP.dpi * 18f;
+        float originX = APP.dpi * 120f;
+        float originY = APP.dpi * 76f;
+        float[] topCol = {size, -size * 0.5f};
+        float[] topRow = {-size, -size * 0.5f};
+        float[] down = {0f, size};
+        float[] rightDepth = {size, size * 0.5f};
+
+        drawFaceGrid(c, fillPaint, strokePaint, shadowPaint, f, color, 0, originX, originY, topCol, topRow);
+        drawFaceGrid(c, fillPaint, strokePaint, shadowPaint, f, color, 9,
+                originX + topCol[0] * 3, originY + topCol[1] * 3, rightDepth, down);
+        drawFaceGrid(c, fillPaint, strokePaint, shadowPaint, f, color, 18, originX, originY, topCol, down);
+        return bitmap;
+    }
+
+    private static void drawFaceGrid(Canvas c, Paint fillPaint, Paint strokePaint, Paint shadowPaint,
+                                     byte[] facelets, int[] colors, int faceStart, float startX, float startY,
+                                     float[] colVec, float[] rowVec) {
+        for (int row = 0; row < 3; row++) {
+            for (int col = 0; col < 3; col++) {
+                int index = faceStart + row * 3 + col;
+                float x = startX + colVec[0] * col + rowVec[0] * row;
+                float y = startY + colVec[1] * col + rowVec[1] * row;
+                Path path = createQuad(
+                        x, y,
+                        x + colVec[0], y + colVec[1],
+                        x + colVec[0] + rowVec[0], y + colVec[1] + rowVec[1],
+                        x + rowVec[0], y + rowVec[1]
+                );
+                c.save();
+                c.translate(APP.dpi * 0.8f, APP.dpi * 0.8f);
+                c.drawPath(path, shadowPaint);
+                c.restore();
+                fillPaint.setColor(colors[facelets[index] & 0xff]);
+                c.drawPath(path, fillPaint);
+                c.drawPath(path, strokePaint);
+            }
+        }
+    }
+
+    private static Path createQuad(float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4) {
+        Path path = new Path();
+        path.moveTo(x1, y1);
+        path.lineTo(x2, y2);
+        path.lineTo(x3, y3);
+        path.lineTo(x4, y4);
+        path.close();
+        return path;
+    }
+
+    public static List<String> getOrientationVariants(String facelets) {
+        List<String> result = new ArrayList<>();
+        if (facelets == null || facelets.length() < 54) {
+            return result;
+        }
+        Set<String> seen = new LinkedHashSet<>();
+        ArrayDeque<String> queue = new ArrayDeque<>();
+        queue.add(facelets);
+        while (!queue.isEmpty()) {
+            String current = queue.poll();
+            if (!seen.add(current)) {
+                continue;
+            }
+            queue.add(rotateFaceletX(current));
+            queue.add(rotateFaceletY(current));
+            queue.add(rotateFaceletZ(current));
+        }
+        result.addAll(seen);
+        return result;
+    }
+
+    public static boolean isSameStateIgnoringRotation(String state, String target) {
+        if (TextUtils.isEmpty(state) || TextUtils.isEmpty(target)) {
+            return false;
+        }
+        if (state.equals(target)) {
+            return true;
+        }
+        List<String> variants = getOrientationVariants(target);
+        return variants.contains(state);
+    }
+
+    public static boolean isSolvedIgnoringRotation(String state) {
+        return isSameStateIgnoringRotation(state, SOLVED_FACELET);
+    }
+
+    private static String rotateFaceletX(String facelets) {
+        return rotateFacelets(facelets, 0);
+    }
+
+    private static String rotateFaceletY(String facelets) {
+        return rotateFacelets(facelets, 1);
+    }
+
+    private static String rotateFaceletZ(String facelets) {
+        return rotateFacelets(facelets, 2);
+    }
+
+    private static String rotateFacelets(String facelets, int axis) {
+        char[] rotated = new char[54];
+        for (int i = 0; i < STICKERS.length; i++) {
+            Sticker sticker = STICKERS[i];
+            Sticker transformed = sticker.rotate(axis);
+            rotated[transformed.index()] = facelets.charAt(i);
+        }
+        return new String(rotated);
+    }
+
+    private static Sticker[] createStickers() {
+        Sticker[] stickers = new Sticker[54];
+        int index = 0;
+        for (int row = 0; row < 3; row++) {
+            for (int col = 0; col < 3; col++) {
+                stickers[index++] = new Sticker(index - 1, -1 + col, 1, -1 + row, 0, 1, 0);
+            }
+        }
+        for (int row = 0; row < 3; row++) {
+            for (int col = 0; col < 3; col++) {
+                stickers[index++] = new Sticker(index - 1, 1, 1 - row, 1 - col, 1, 0, 0);
+            }
+        }
+        for (int row = 0; row < 3; row++) {
+            for (int col = 0; col < 3; col++) {
+                stickers[index++] = new Sticker(index - 1, -1 + col, 1 - row, 1, 0, 0, 1);
+            }
+        }
+        for (int row = 0; row < 3; row++) {
+            for (int col = 0; col < 3; col++) {
+                stickers[index++] = new Sticker(index - 1, -1 + col, -1, 1 - row, 0, -1, 0);
+            }
+        }
+        for (int row = 0; row < 3; row++) {
+            for (int col = 0; col < 3; col++) {
+                stickers[index++] = new Sticker(index - 1, -1, 1 - row, -1 + col, -1, 0, 0);
+            }
+        }
+        for (int row = 0; row < 3; row++) {
+            for (int col = 0; col < 3; col++) {
+                stickers[index++] = new Sticker(index - 1, 1 - col, 1 - row, -1, 0, 0, -1);
+            }
+        }
+        return stickers;
+    }
+
+    private static int getFaceIndex(int nx, int ny, int nz) {
+        if (ny == 1) return 0;
+        if (nx == 1) return 1;
+        if (nz == 1) return 2;
+        if (ny == -1) return 3;
+        if (nx == -1) return 4;
+        return 5;
+    }
+
+    private static int getRow(int face, int x, int y, int z) {
+        switch (face) {
+            case 0:
+                return z + 1;
+            case 1:
+            case 2:
+            case 4:
+            case 5:
+                return 1 - y;
+            case 3:
+                return 1 - z;
+            default:
+                return 0;
+        }
+    }
+
+    private static int getCol(int face, int x, int y, int z) {
+        switch (face) {
+            case 0:
+            case 2:
+            case 3:
+                return x + 1;
+            case 1:
+                return 1 - z;
+            case 4:
+                return z + 1;
+            case 5:
+                return 1 - x;
+            default:
+                return 0;
+        }
+    }
+
+    private static class Sticker {
+        final int sourceIndex;
+        final int x;
+        final int y;
+        final int z;
+        final int nx;
+        final int ny;
+        final int nz;
+
+        Sticker(int sourceIndex, int x, int y, int z, int nx, int ny, int nz) {
+            this.sourceIndex = sourceIndex;
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.nx = nx;
+            this.ny = ny;
+            this.nz = nz;
+        }
+
+        Sticker rotate(int axis) {
+            switch (axis) {
+                case 0:
+                    return new Sticker(sourceIndex, x, -z, y, nx, -nz, ny);
+                case 1:
+                    return new Sticker(sourceIndex, z, y, -x, nz, ny, -nx);
+                default:
+                    return new Sticker(sourceIndex, -y, x, z, -ny, nx, nz);
+            }
+        }
+
+        int index() {
+            int face = getFaceIndex(nx, ny, nz);
+            int row = getRow(face, x, y, z);
+            int col = getCol(face, x, y, z);
+            return face * 9 + row * 3 + col;
+        }
     }
 }

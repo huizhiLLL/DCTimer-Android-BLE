@@ -2,6 +2,8 @@ package com.dctimer.model;
 
 import android.util.Log;
 
+import com.dctimer.util.Utils;
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,6 +24,8 @@ public class SmartCube implements Serializable {
     private List<Integer> preMoveList;
     private List<Integer> moveList;
     private StateChangedCallback callback;
+    private String targetState;
+    private boolean scrambledNotified;
 
     public SmartCube() {
         rawData = new ArrayList<>();
@@ -77,14 +81,21 @@ public class SmartCube implements Serializable {
         rawData.add(move << 16 | time);
         cc = cc.move(move);
         cubeState = Util.toFaceCube(cc);
-        if (cubeState.equals(scramble) && callback != null)
+        if (scramble != null && !scramble.equals(targetState)) {
+            targetState = scramble;
+            scrambledNotified = false;
+        }
+        if (!scrambledNotified && callback != null && Utils.isSameStateIgnoringRotation(cubeState, scramble)) {
+            scrambledNotified = true;
             callback.onScrambled(this);
-        if (cubeState.equals("UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB") && callback != null)
+        }
+        if (callback != null && Utils.isSolvedIgnoringRotation(cubeState))
             callback.onSolved(this);
     }
 
     public void markScrambled() {
         preIdx = rawData.size();
+        scrambledNotified = true;
     }
 
     public void markSolved() {
@@ -92,6 +103,8 @@ public class SmartCube implements Serializable {
         cc = new CubieCube();
         rawData = new ArrayList<>();
         preIdx = 0;
+        targetState = null;
+        scrambledNotified = false;
     }
 
     public void calcResult() {

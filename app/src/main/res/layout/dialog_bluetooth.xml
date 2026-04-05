@@ -59,6 +59,14 @@
             android:textColor="@color/colorText" />
 
         <RadioButton
+            android:id="@+id/rb_moyu32"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="MoYu32"
+            android:textSize="15sp"
+            android:textColor="@color/colorText" />
+
+        <RadioButton
             android:id="@+id/rb_gani"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

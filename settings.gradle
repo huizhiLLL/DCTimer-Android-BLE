@@ -1,0 +1,2 @@
+rootProject.name = 'DCTimer-Android-BLE'
+include ':app'

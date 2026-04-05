@@ -1,31 +1,45 @@
-# English
-Main features:
-- Supports all WCA's official scrambles, including random-state scramble of 2x2-4x4, Pyraminx, Square-1, Clock and Skewb.
-- Supports unofficial and training scrambles, such as 3x3 LL training, edges training for big cubes, etc.
-- Timer accuracy is 1 millisecond or 0.01s.
-- Supports WCA inspection.
-- Multiple session: shows best/worst time, rolling average, best average/mean and session mean/average.
-- Supports 3x3 cross/Xcross/EOLine solver, Square-1 shape solver, ect.
+# DCTimer-Android-BLE
 
-# 中文
-主要功能：
-- 计时：2位或3位小数精度，计时范围0~596小时；支持WCA观察；可通过触屏、手动输入等方式记录成绩
-- 打乱：所有WCA官方的打乱，包括2~4阶、金字塔、SQ1、魔表、斜转随机状态打乱；提供官方打乱的打乱状态查看；其他非官方打乱和训练打乱，比如三阶LL训练、高阶对棱训练等
-- 统计：显示分组平均及去尾平均，提供任意次数滚动平均查看；可查看分组的时间分布直方图、折线图等
-- 手势：支持上下左右四个方向轻扫触发不同操作
-- 其他：三阶cross/xcross计算、SQ1复形计算等；可设置背景颜色或图片，各种文字颜色等
+基于原始 `DCTimer-Android` 的二次整理仓库，当前主要方向是补全和完善智能魔方相关功能，尤其是 Android 端的蓝牙智能魔方计时体验。
 
-# License GPLv3
+## 仓库定位
 
-    Copyright (C) 2020  Meigen Chou
+- 保留原有 DCTimer 的计时、打乱、统计与求解能力
+- 在原项目基础上继续完善智能魔方支持
+- 当前重点是 `MoYu32` 系列智能魔方的蓝牙连接、协议解析与自动计时链路
 
-    This program is free software: you can redistribute it and/or modify it under the terms
-    of the GNU General Public License as published by the Free Software Foundation, either
-     version 3 of the License, or (at your option) any later version.
+## 当前已完成/已接入的基础
 
-    This program is distributed in the hope that it will be useful, but WITHOUT ANY
-    WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
-    PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+- Android 工程骨架已补齐，可在 Android Studio 中正常导入与构建
+- `MoYu32` 设备类型已接入设备选择与蓝牙连接流程
+- `MoYu32` 基础协议解析链路已接通
+- 智能魔方成绩保存链路可复用原有 DCTimer 结果体系
 
-    You should have received a copy of the GNU General Public License along with this
-    program.  If not, see <http://www.gnu.org/licenses/>.
+## 后续完善方向
+
+- 继续对齐 csTimer 风格的智能魔方交互体验
+- 完善自动打乱判定与 ready/观察状态
+- 优化计时页面中的智能魔方状态展示
+- 持续补全文档与接手说明
+
+## 目录说明
+
+- `app/`
+  Android 应用源码
+- `docs/`
+  方案设计、任务拆分与后续接手说明
+- `ref/`
+  本地参考资料目录，通常用于放置参考源码，不作为仓库正式内容提交
+
+## 说明
+
+本仓库是在原始 `DCTimer-Android` 基础上继续开发的工作仓库。  
+应用显示名当前为 `DCTimer-BLE`，并通过独立 `applicationId` 与原版应用区分，支持与原版并存安装。
+如果你是后续接手开发，建议先阅读：
+
+- `docs/方案设计/2026-04-04-moyu32-智能魔方计时一期方案.md`
+- `docs/任务拆分/2026-04-04-moyu32-智能魔方计时一期任务拆分.md`
+
+## License
+
+沿用原项目许可证与版权约定。

@@ -39,22 +39,18 @@
     </RadioGroup>
 
     <uz.shift.colorpicker.LineColorPicker
-        xmlns:app="http://schemas.android.com/apk/res-auto"
         android:id="@+id/color_picker_primary"
         android:layout_width="match_parent"
         android:layout_height="60dp"
         android:layout_marginLeft="15dp"
         android:layout_marginRight="15dp"
-        android:layout_marginTop="15dp"
-        app:orientation="horizontal" />
+        android:layout_marginTop="15dp" />
 
     <uz.shift.colorpicker.LineColorPicker
-        xmlns:app="http://schemas.android.com/apk/res-auto"
         android:id="@+id/color_picker_primary_2"
         android:layout_width="match_parent"
         android:layout_height="45dp"
         android:layout_marginLeft="15dp"
         android:layout_marginRight="15dp"
-        app:orientation="horizontal"
         android:layout_marginTop="14dp" />
 </LinearLayout>

@@ -5,6 +5,7 @@ public class BLEDevice {
     public static final int TYPE_GANI_CUBE = 1;
     public static final int TYPE_GAN_TIMER = 2;
     public static final int TYPE_GAN_ROBOT = 3;
+    public static final int TYPE_MOYU32_CUBE = 4;
     private String name;
     private String address;
     private int connected;

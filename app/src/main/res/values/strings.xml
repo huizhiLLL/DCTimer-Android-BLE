@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name" translatable="false">DCTimer</string>
+    <string name="app_name" translatable="false">DCTimer-BLE</string>
     <string name="navigation_drawer_open" translatable="false">Navigation drawer open</string>
     <string name="navigation_drawer_close" translatable="false">Navigation drawer close</string>
     <string name="title_activity_detail">Details</string>

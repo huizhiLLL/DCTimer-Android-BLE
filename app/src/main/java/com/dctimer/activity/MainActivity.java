@@ -199,7 +199,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         //Log.w("dct", dm.widthPixels+"x"+dm.heightPixels);
         //System.out.println(dpi+", "+dm.widthPixels);
         if (Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
-            defaultPath = Environment.getExternalStorageDirectory().getPath() + "/DCTimer/";
+            defaultPath = Environment.getExternalStorageDirectory().getPath() + "/DCTimer-BLE/";
         }
         dataPath = getFilesDir().getParent() + "/databases/";
         //Log.w("dct", "path: "+context.getFilesDir().getPath());
@@ -888,6 +888,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             @Override
             public void onCheckedChanged(RadioGroup radioGroup, int i) {
                 switch (i) {
+                    case R.id.rb_moyu32:
+                        bleDeviceType = BLEDevice.TYPE_MOYU32_CUBE;
+                        break;
                     case R.id.rb_gani:
                         bleDeviceType = BLEDevice.TYPE_GANI_CUBE;
                         break;
@@ -902,6 +905,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         });
         RadioButton rb;
         switch (bleDeviceType) {
+            case BLEDevice.TYPE_MOYU32_CUBE:
+                rb = v.findViewById(R.id.rb_moyu32);
+                break;
             case BLEDevice.TYPE_GANI_CUBE:
                 rb = v.findViewById(R.id.rb_gani);
                 break;
@@ -988,6 +994,14 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         setTimerColor(0xff00ff00);
         timer.setTimerState(DCTTimer.READY);
         canStart = true;
+    }
+
+    public void showCubeStateDialog() {
+        if (isFinishing() || bluetoothTools == null || bluetoothTools.getCube() == null) {
+            return;
+        }
+        CubeStateDialog dialog = CubeStateDialog.newInstance(bluetoothTools.getCube());
+        dialog.show(getSupportFragmentManager(), "CubeState");
     }
 
     private SmartCube.StateChangedCallback cubeStateChangeCallback = new SmartCube.StateChangedCallback() {
@@ -3022,7 +3036,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 }
                 isSwipe = false;
             } else if(enterTime == 3) { //蓝牙设备
-                if (bleDeviceType == BLEDevice.TYPE_GANI_CUBE || bleDeviceType == BLEDevice.TYPE_GIIKER_CUBE) {
+                if (bleDeviceType == BLEDevice.TYPE_GANI_CUBE || bleDeviceType == BLEDevice.TYPE_GIIKER_CUBE || bleDeviceType == BLEDevice.TYPE_MOYU32_CUBE) {
                     if (bluetoothTools.getCube() != null) {
                         CubeStateDialog dialog = CubeStateDialog.newInstance(bluetoothTools.getCube());
                         dialog.show(getSupportFragmentManager(), "CubeState");
@@ -3388,7 +3402,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                         //Log.w("dct", defaultPath+fileName);
                         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                         //File f = new File(defaultPath, fileName);
-                        Uri contentUri = FileProvider.getUriForFile(context, "com.dctimer.provider", new File(defaultPath +fileName));
+                        Uri contentUri = FileProvider.getUriForFile(context, context.getPackageName() + ".provider", new File(defaultPath +fileName));
                         intent.setDataAndType(contentUri, "application/vnd.android.package-archive");
                     } else {
                         intent.setAction(android.content.Intent.ACTION_VIEW);
