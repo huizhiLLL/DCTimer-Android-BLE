@@ -8,6 +8,10 @@ import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
+import android.bluetooth.le.BluetoothLeScanner;
+import android.bluetooth.le.ScanCallback;
+import android.bluetooth.le.ScanResult;
+import android.bluetooth.le.ScanSettings;
 import android.os.Build;
 import android.util.Log;
 import android.widget.Toast;
@@ -45,6 +49,7 @@ public class BluetoothTools {
 
     private MainActivity context;
     private BluetoothAdapter bluetoothAdapter;
+    private BluetoothLeScanner bluetoothLeScanner;
     private boolean mScanning;
     private Set<String> addressMap;
     private List<BLEDevice> cubeList;
@@ -110,14 +115,20 @@ public class BluetoothTools {
     }
 
     public void getBluetoothAdapter() {
-        bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-        if (bluetoothAdapter != null && !bluetoothAdapter.isEnabled()) {
-            boolean isEnable = bluetoothAdapter.enable();
-            if (!isEnable) {
-                Log.e("dct", "蓝牙打开失败");
+        try {
+            bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+            if (bluetoothAdapter != null && !bluetoothAdapter.isEnabled()) {
+                boolean isEnable = bluetoothAdapter.enable();
+                if (!isEnable) {
+                    Log.e("dct", "蓝牙打开失败");
+                }
             }
+        } catch (SecurityException e) {
+            Log.e("dct", "获取蓝牙适配器失败", e);
+            bluetoothAdapter = null;
         }
         mScanning = false;
+        bluetoothLeScanner = null;
     }
 
 
@@ -138,41 +149,119 @@ public class BluetoothTools {
     private BluetoothAdapter.LeScanCallback mLeScanCallback = new BluetoothAdapter.LeScanCallback() {
         @Override
         public void onLeScan(BluetoothDevice bluetoothDevice, int i, byte[] bytes) {
-            if (bluetoothDevice.getName() == null) return;
-            Log.w("dct", "发现设备 "+bluetoothDevice.getName());
-            if (addressMap.contains(bluetoothDevice.getAddress())) return;
-            //SmartCube cube = new SmartCube(bluetoothDevice.getName(), bluetoothDevice.getAddress());
-            BLEDevice device = new BLEDevice(bluetoothDevice.getName(), bluetoothDevice.getAddress());
-            addressMap.add(bluetoothDevice.getAddress());
-            cubeList.add(device);
-            context.refreshCubeList(cubeList);
+            onDeviceFound(bluetoothDevice);
         }
     };
 
-    @TargetApi(18)
+    @TargetApi(21)
+    private final ScanCallback mScanCallback = new ScanCallback() {
+        @Override
+        public void onScanResult(int callbackType, ScanResult result) {
+            if (result != null) {
+                onDeviceFound(result.getDevice());
+            }
+        }
+
+        @Override
+        public void onBatchScanResults(List<ScanResult> results) {
+            if (results == null) return;
+            for (ScanResult result : results) {
+                if (result != null) {
+                    onDeviceFound(result.getDevice());
+                }
+            }
+        }
+
+        @Override
+        public void onScanFailed(int errorCode) {
+            Log.e("dct", "BLE 扫描失败 errorCode=" + errorCode);
+            mScanning = false;
+            context.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    context.showScanButton();
+                }
+            });
+        }
+    };
+
+    private void onDeviceFound(BluetoothDevice bluetoothDevice) {
+        if (bluetoothDevice == null) return;
+        try {
+            final String deviceName = bluetoothDevice.getName();
+            final String deviceAddress = bluetoothDevice.getAddress();
+            if (deviceName == null || deviceAddress == null) return;
+            Log.w("dct", "发现设备 " + deviceName);
+            if (addressMap.contains(deviceAddress)) return;
+            BLEDevice device = new BLEDevice(deviceName, deviceAddress);
+            addressMap.add(deviceAddress);
+            cubeList.add(device);
+            context.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    context.refreshCubeList(cubeList);
+                }
+            });
+        } catch (SecurityException e) {
+            Log.e("dct", "读取扫描设备信息失败", e);
+        }
+    }
+
     public void startScan() {
         cubeList = new ArrayList<>();
         if (bluetoothAdapter != null && !mScanning) {
             Log.w("dct", "搜索设备");
             addressMap = new HashSet<>();
-            bluetoothAdapter.startLeScan(mLeScanCallback);
-            mScanning = true;
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    bluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
+                    if (bluetoothLeScanner != null) {
+                        ScanSettings settings = new ScanSettings.Builder()
+                                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                                .build();
+                        bluetoothLeScanner.startScan(null, settings, mScanCallback);
+                        mScanning = true;
+                        return;
+                    }
+                    Log.w("dct", "BluetoothLeScanner 为空，回退旧扫描链路");
+                }
+                bluetoothAdapter.startLeScan(mLeScanCallback);
+                mScanning = true;
+            } catch (SecurityException e) {
+                Log.e("dct", "启动 BLE 扫描失败", e);
+                mScanning = false;
+                context.runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(context, context.getString(R.string.permission_deny), Toast.LENGTH_SHORT).show();
+                        context.showScanButton();
+                    }
+                });
+            }
         }
     }
 
-    @TargetApi(18)
     public void stopScan() {
         if (bluetoothAdapter != null && mScanning) {
             Log.w("dct", "停止搜索");
-            bluetoothAdapter.stopLeScan(mLeScanCallback);
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && bluetoothLeScanner != null) {
+                    bluetoothLeScanner.stopScan(mScanCallback);
+                } else {
+                    bluetoothAdapter.stopLeScan(mLeScanCallback);
+                }
+            } catch (SecurityException e) {
+                Log.e("dct", "停止 BLE 扫描失败", e);
+            }
             mScanning = false;
+            bluetoothLeScanner = null;
         }
     }
 
     @TargetApi(18)
     public void connectDevice(int pos) {
         if (mScanning) {
-            bluetoothAdapter.stopLeScan(mLeScanCallback);
+            stopScan();
             context.showScanButton();
         }
         connectedIndex = pos;
@@ -180,20 +269,27 @@ public class BluetoothTools {
         bleDeviceType = resolveDeviceType(bleDevice.getName());
         Log.w("dct", "连接设备 " + bleDevice.getName() + " 使用类型 " + bleDeviceType);
         String address = bleDevice.getAddress();
-        BluetoothDevice device = bluetoothAdapter.getRemoteDevice(address);
         int connect = bleDevice.getConnected();
         if (connect == 0) {
-            bleDevice.setConnected(2);
-            if (bleDeviceType == BLEDevice.TYPE_GAN_TIMER) {
-                smartTimer = new SmartTimer();
-            } else {
-                smartCube = new SmartCube();
+            try {
+                BluetoothDevice device = bluetoothAdapter.getRemoteDevice(address);
+                bleDevice.setConnected(2);
+                if (bleDeviceType == BLEDevice.TYPE_GAN_TIMER) {
+                    smartTimer = new SmartTimer();
+                } else {
+                    smartCube = new SmartCube();
+                }
+                moyu32Protocol = null;
+                context.refreshCubeList();
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    mBluetoothGatt = device.connectGatt(context, false, mBluetoothGattCallback, BluetoothDevice.TRANSPORT_LE);
+                } else mBluetoothGatt = device.connectGatt(context, false, mBluetoothGattCallback);
+            } catch (SecurityException e) {
+                bleDevice.setConnected(0);
+                Log.e("dct", "连接蓝牙设备失败", e);
+                context.refreshCubeList();
+                Toast.makeText(context, context.getString(R.string.permission_deny), Toast.LENGTH_SHORT).show();
             }
-            moyu32Protocol = null;
-            context.refreshCubeList();
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                mBluetoothGatt = device.connectGatt(context, false, mBluetoothGattCallback, BluetoothDevice.TRANSPORT_LE);
-            } else mBluetoothGatt = device.connectGatt(context, false, mBluetoothGattCallback);
         }
     }
 

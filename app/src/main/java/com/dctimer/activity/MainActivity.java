@@ -42,8 +42,11 @@ import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.text.Editable;
 import android.text.Html;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
 import android.text.TextUtils;
 import android.text.TextWatcher;
+import android.text.style.ForegroundColorSpan;
 import android.util.Log;
 import android.view.*;
 import android.support.design.widget.NavigationView;
@@ -66,6 +69,7 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.util.*;
 
+import cs.min2phase.Tools;
 import cs.threephase.Util;
 import scrambler.Scrambler;
 import uz.shift.colorpicker.LineColorPicker;
@@ -83,6 +87,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private Button btnScramble;  //打乱按钮
     private ImageButton btnLeft;
     private ImageButton btnRight;
+    private Button btnCubeReset;
     private TextView tvTimer;   //计时器
     private ImageView scrambleView; //打乱图案
     private Bitmap bmScrambleView;
@@ -98,6 +103,14 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private ProgressBar pbScan;
     private TextView tvTest;
     private Button btnScan;
+    private final Runnable stopBleScanRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (btnScan != null) btnScan.setVisibility(View.VISIBLE);
+            if (pbScan != null) pbScan.setVisibility(View.GONE);
+            if (bluetoothTools != null) bluetoothTools.stopScan();
+        }
+    };
 
     private LinearLayout llSession;
     private LinearLayout llSearch;
@@ -150,6 +163,11 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private SensorManager sensorManager;
     private Sensor sensor;
     private double lastAcc;
+    private String smartCubeScrambleCache = "";
+    private final List<String> smartCubeScrambleMoves = new ArrayList<>();
+    private final List<String> smartCubeScrambleStates = new ArrayList<>();
+    private int smartCubeScrambleProgress;
+    private boolean smartCubeSkipStartForCurrentMove;
 
     private Stackmat stackmat;
     private BluetoothTools bluetoothTools;
@@ -157,6 +175,11 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     //private SmartCube cube;
 
     private static final String[] PERMISSIONS = { android.Manifest.permission.WRITE_EXTERNAL_STORAGE };
+    private static final int REQUEST_BLE_PERMISSION = 6;
+    private static final int ANDROID_API_S = 31;
+    private static final String PERMISSION_BLUETOOTH_SCAN = "android.permission.BLUETOOTH_SCAN";
+    private static final String PERMISSION_BLUETOOTH_CONNECT = "android.permission.BLUETOOTH_CONNECT";
+    private static final String SOLVED_FACELET = "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB";
     private static final int[] VIBRATE_TIME = {30, 50, 80, 150, 240};
     private static final int[] ITEMS_ID = {R.array.opt_enter_time, R.array.opt_timer_update, R.array.opt_accuracy, R.array.opt_multi_phase,
             R.array.opt_average, R.array.opt_solve_333, R.array.opt_solve_222, R.array.opt_mega_scheme,
@@ -281,6 +304,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         btnLeft.setOnClickListener(mOnClickListener);
         btnRight = findViewById(R.id.bt_right);
         btnRight.setOnClickListener(mOnClickListener);
+        btnCubeReset = findViewById(R.id.bt_cube_reset);
+        btnCubeReset.setOnClickListener(mOnClickListener);
         tvTimer = findViewById(R.id.tv_timer);
         tvTimer.setOnTouchListener(mOnTouchListener);
         scrambleView = findViewById(R.id.iv_scramble);
@@ -844,7 +869,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (grantResults[0] != PackageManager.PERMISSION_GRANTED) {
+            if (!areAllPermissionsGranted(grantResults)) {
                 Toast.makeText(context, R.string.permission_deny, Toast.LENGTH_SHORT).show();
             } else if (requestCode == 2) {  //选择图片
                 selectPic();
@@ -854,8 +879,12 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 ExportScrambleDialog.newInstance(btnScramble.getText().toString()).show(getSupportFragmentManager(), "ExportScramble");
             } else if (requestCode == 5) {  //下载
                 download("DCTimer" + newVersion + ".apk");
-            } else if (requestCode == 6) {  //蓝牙
-                scanDevice();
+            } else if (requestCode == REQUEST_BLE_PERMISSION) {  //蓝牙
+                if (dialog != null && dialog.isShowing()) {
+                    startBleScanInternal();
+                } else {
+                    openBleScanDialog();
+                }
             } else if (requestCode == 7) {  //Stackmat
                 startStackmat();
             } else if (requestCode == 8) {
@@ -863,6 +892,59 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 startActivity(intent);
             }
         }
+    }
+
+    private boolean areAllPermissionsGranted(@NonNull int[] grantResults) {
+        if (grantResults.length == 0) {
+            return false;
+        }
+        for (int grantResult : grantResults) {
+            if (grantResult != PackageManager.PERMISSION_GRANTED) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private String[] getBlePermissions() {
+        if (Build.VERSION.SDK_INT >= ANDROID_API_S) {
+            if (getApplicationInfo().targetSdkVersion < ANDROID_API_S) {
+                return new String[] {
+                        PERMISSION_BLUETOOTH_SCAN,
+                        PERMISSION_BLUETOOTH_CONNECT,
+                        Manifest.permission.ACCESS_FINE_LOCATION
+                };
+            }
+            return new String[] { PERMISSION_BLUETOOTH_SCAN, PERMISSION_BLUETOOTH_CONNECT };
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            return new String[] { Manifest.permission.ACCESS_FINE_LOCATION };
+        }
+        return new String[0];
+    }
+
+    private boolean hasPermissions(String[] permissions) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return true;
+        }
+        for (String permission : permissions) {
+            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean ensureBlePermissions() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return true;
+        }
+        String[] blePermissions = getBlePermissions();
+        if (blePermissions.length == 0 || hasPermissions(blePermissions)) {
+            return true;
+        }
+        ActivityCompat.requestPermissions(this, blePermissions, REQUEST_BLE_PERMISSION);
+        return false;
     }
 
     private void startStackmat() {
@@ -873,8 +955,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         stackmat.start();
     }
 
-    private void scanDevice() {
-        bluetoothTools.startScan();
+    private void openBleScanDialog() {
         View v = LayoutInflater.from(this).inflate(R.layout.dialog_bluetooth, null);
         btnScan = v.findViewById(R.id.btn_scan);
         btnScan.setOnClickListener(mOnClickListener);
@@ -923,31 +1004,223 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 .setNegativeButton(R.string.btn_cancel, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialogInterface, int i) {
+                        handler.removeCallbacks(stopBleScanRunnable);
                         bluetoothTools.stopScan();
                     }
                 }).setCancelable(false).show();
-        handler.postDelayed(new Runnable() {
+        startBleScanInternal();
+    }
+
+    private void startBleScanInternal() {
+        if (btnScan != null) btnScan.setVisibility(View.GONE);
+        if (pbScan != null) pbScan.setVisibility(View.VISIBLE);
+        bluetoothTools.startScan();
+        handler.removeCallbacks(stopBleScanRunnable);
+        handler.postDelayed(stopBleScanRunnable, 20000);
+    }
+
+    private void startBleScanFlow() {
+        if (Build.VERSION.SDK_INT < 18 || !getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
+            Toast.makeText(context, R.string.ble_not_supported, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (!ensureBlePermissions()) {
+            return;
+        }
+        bluetoothTools.disconnect();
+        setTimerText("0" + (decimalMark == 0 ? "." : ",") + (timerAccuracy == 0 ? "00" : "000"));
+        if (bluetoothTools.initBluetoothAdapter()) {
+            openBleScanDialog();
+        } else {
+            Toast.makeText(context, R.string.ble_not_supported, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private boolean isSmartCubeDeviceType(int deviceType) {
+        return deviceType == BLEDevice.TYPE_GANI_CUBE
+                || deviceType == BLEDevice.TYPE_GIIKER_CUBE
+                || deviceType == BLEDevice.TYPE_MOYU32_CUBE;
+    }
+
+    private SmartCube getActiveSmartCube() {
+        if (enterTime != 3 || bluetoothTools == null || !isSmartCubeDeviceType(bleDeviceType)) {
+            return null;
+        }
+        return bluetoothTools.getCube();
+    }
+
+    private boolean shouldShowTimerPageCubeState() {
+        return getActiveSmartCube() != null;
+    }
+
+    private String getIdleTimerText() {
+        return "0" + (decimalMark == 0 ? "." : ",") + (timerAccuracy == 0 ? "00" : "000");
+    }
+
+    private void clearSmartCubeScrambleCache() {
+        smartCubeScrambleCache = "";
+        smartCubeScrambleProgress = 0;
+        smartCubeScrambleMoves.clear();
+        smartCubeScrambleStates.clear();
+    }
+
+    private void ensureSmartCubeScrambleCache() {
+        if (currentScramble == null || !currentScramble.is333Scramble() || TextUtils.isEmpty(currentScramble.getScramble())) {
+            clearSmartCubeScrambleCache();
+            return;
+        }
+        String scramble = currentScramble.getScramble().replace('\n', ' ').trim();
+        if (TextUtils.equals(smartCubeScrambleCache, scramble)) {
+            return;
+        }
+        clearSmartCubeScrambleCache();
+        smartCubeScrambleCache = scramble;
+        if (TextUtils.isEmpty(scramble)) {
+            return;
+        }
+        String[] moves = scramble.split("\\s+");
+        StringBuilder prefix = new StringBuilder();
+        try {
+            for (String move : moves) {
+                if (TextUtils.isEmpty(move)) continue;
+                smartCubeScrambleMoves.add(move);
+                if (prefix.length() > 0) prefix.append(' ');
+                prefix.append(move);
+                smartCubeScrambleStates.add(Tools.fromScramble(prefix.toString()));
+            }
+        } catch (Exception e) {
+            Log.e("dct", "构建智能魔方打乱进度失败", e);
+            clearSmartCubeScrambleCache();
+        }
+    }
+
+    private void updateSmartCubeScrambleProgress(SmartCube cube) {
+        ensureSmartCubeScrambleCache();
+        if (cube == null || smartCubeScrambleStates.isEmpty()) {
+            smartCubeScrambleProgress = 0;
+            return;
+        }
+        String cubeState = cube.getCubeState();
+        if (TextUtils.isEmpty(cubeState)) {
+            return;
+        }
+        int matchedProgress = -1;
+        for (int i = smartCubeScrambleStates.size() - 1; i >= 0; i--) {
+            if (cubeState.equals(smartCubeScrambleStates.get(i))) {
+                matchedProgress = i + 1;
+                break;
+            }
+        }
+        if (matchedProgress >= 0) {
+            smartCubeScrambleProgress = matchedProgress;
+        } else if (Utils.isSolvedIgnoringRotation(cubeState) || SOLVED_FACELET.equals(cubeState)) {
+            smartCubeScrambleProgress = 0;
+        }
+    }
+
+    private CharSequence buildSmartCubeScrambleText() {
+        ensureSmartCubeScrambleCache();
+        if (smartCubeScrambleMoves.isEmpty()) {
+            return currentScramble.getScrambleWithHint(dm.heightPixels < dpi * 376);
+        }
+        int baseColor = APP.getTextColor();
+        int doneColor = Color.argb(96, Color.red(baseColor), Color.green(baseColor), Color.blue(baseColor));
+        int nextColor = 0xff00cc66;
+        SpannableStringBuilder builder = new SpannableStringBuilder();
+        for (int i = 0; i < smartCubeScrambleMoves.size(); i++) {
+            if (i > 0) builder.append(' ');
+            int start = builder.length();
+            builder.append(smartCubeScrambleMoves.get(i));
+            int end = builder.length();
+            int spanColor = baseColor;
+            if (i < smartCubeScrambleProgress) {
+                spanColor = doneColor;
+            } else if (i == smartCubeScrambleProgress && smartCubeScrambleProgress < smartCubeScrambleMoves.size()) {
+                spanColor = nextColor;
+            }
+            builder.setSpan(new ForegroundColorSpan(spanColor), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        return builder;
+    }
+
+    private void updateScrambleTextView() {
+        if (currentScramble == null || TextUtils.isEmpty(currentScramble.getScramble())) {
+            return;
+        }
+        if (currentScramble.getScrambleListSize() > 1) {
+            tvScramble.setText(currentScramble.getScrambleWithIndicator(dm.heightPixels < dpi * 376));
+            btnLeft.setVisibility(View.VISIBLE);
+            btnLeft.setEnabled(true);
+            btnRight.setVisibility(View.VISIBLE);
+            btnRight.setEnabled(true);
+        } else {
+            if (shouldShowTimerPageCubeState() && currentScramble.is333Scramble()) {
+                updateSmartCubeScrambleProgress(getActiveSmartCube());
+                tvScramble.setText(buildSmartCubeScrambleText());
+            } else {
+                tvScramble.setText(currentScramble.getScrambleWithHint(dm.heightPixels < dpi * 376));
+            }
+            btnLeft.setVisibility(View.GONE);
+            btnRight.setVisibility(View.GONE);
+        }
+    }
+
+    private void updateSmartCubeResetButton() {
+        if (btnCubeReset == null) return;
+        boolean visible = shouldShowTimerPageCubeState() && timer.getTimerState() != DCTTimer.RUNNING;
+        btnCubeReset.setVisibility(visible ? View.VISIBLE : View.GONE);
+    }
+
+    private void refreshTimerPageSmartCubeUi() {
+        runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                btnScan.setVisibility(View.VISIBLE);
-                pbScan.setVisibility(View.GONE);
-                bluetoothTools.stopScan();
+                if (timer.getTimerState() == DCTTimer.RUNNING) {
+                    updateSmartCubeResetButton();
+                    return;
+                }
+                updateScrambleTextView();
+                showScrambleView();
+                updateSmartCubeResetButton();
             }
-        }, 20000);
+        });
+    }
+
+    public void resetSmartCubeToSolved() {
+        SmartCube cube = getActiveSmartCube();
+        if (cube == null) {
+            return;
+        }
+        cube.markSolved();
+        timer.stopInspect();
+        timer.setTimerState(DCTTimer.READY);
+        canStart = false;
+        smartCubeSkipStartForCurrentMove = false;
+        penaltyTime = 0;
+        isDNF = false;
+        setTimerColor(APP.getTextColor());
+        setTimerText(getIdleTimerText());
+        tvMulPhase.setText("");
+        smartCubeScrambleProgress = 0;
+        refreshTimerPageSmartCubeUi();
+        Toast.makeText(context, R.string.smart_cube_reset_done, Toast.LENGTH_SHORT).show();
     }
 
     public void refreshCubeList(List<BLEDevice> list) {
+        if (adapter == null) return;
         adapter.setList(list);
         adapter.notifyDataSetChanged();
     }
 
     public void refreshCubeList() {
+        if (adapter == null) return;
         adapter.notifyDataSetChanged();
     }
 
     public void showScanButton() {
-        pbScan.setVisibility(View.GONE);
-        btnScan.setVisibility(View.VISIBLE);
+        handler.removeCallbacks(stopBleScanRunnable);
+        if (pbScan != null) pbScan.setVisibility(View.GONE);
+        if (btnScan != null) btnScan.setVisibility(View.VISIBLE);
     }
 
     public void connectCube(int pos) {
@@ -955,8 +1228,11 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     }
 
     public void dismissDialog() {
-        dialog.dismiss();
+        handler.removeCallbacks(stopBleScanRunnable);
+        if (dialog != null && dialog.isShowing()) dialog.dismiss();
         adapter = null;
+        btnScan = null;
+        pbScan = null;
         canStart = false;
     }
 
@@ -967,18 +1243,27 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 if (adapter != null)
                     adapter.notifyDataSetChanged();
                 Toast.makeText(context, device.getName() + getString(R.string.cube_not_connected), Toast.LENGTH_SHORT).show();
+                updateSmartCubeResetButton();
+                showScrambleView();
+                updateScrambleTextView();
             }
         });
     }
 
     public void moveCube(SmartCube cube, int move, int time) {
         cube.applyMove(move, time, currentScramble.getCubeState());
+        refreshTimerPageSmartCubeUi();
         if (timer.getTimerState() == DCTTimer.READY) {
             if (canStart) {
+                if (smartCubeSkipStartForCurrentMove) {
+                    smartCubeSkipStartForCurrentMove = false;
+                    return;
+                }
                 canStart = false;
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
+                        tvMulPhase.setText("");
                         timer.timeStart = SystemClock.uptimeMillis();
                         timer.count();
                         acquireWakeLock();
@@ -992,14 +1277,19 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
     public void markScrambled() {
         setTimerColor(0xff00ff00);
+        setTimerText(getString(R.string.ready));
+        tvMulPhase.setText("");
         timer.setTimerState(DCTTimer.READY);
         canStart = true;
+        smartCubeSkipStartForCurrentMove = false;
+        refreshTimerPageSmartCubeUi();
     }
 
     public void showCubeStateDialog() {
         if (isFinishing() || bluetoothTools == null || bluetoothTools.getCube() == null) {
             return;
         }
+        refreshTimerPageSmartCubeUi();
         CubeStateDialog dialog = CubeStateDialog.newInstance(bluetoothTools.getCube());
         dialog.show(getSupportFragmentManager(), "CubeState");
     }
@@ -1010,13 +1300,17 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             Log.w("dct", "已打乱");
             if (timer.getTimerState() != DCTTimer.RUNNING) {
                 cube.markScrambled();
+                timer.stopInspect();
+                timer.setTimerState(DCTTimer.READY);
+                canStart = true;
+                smartCubeSkipStartForCurrentMove = true;
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
                         setTimerColor(0xff00ff00);
+                        setTimerText(getString(R.string.ready));
                         tvMulPhase.setText("");
-                        timer.setTimerState(DCTTimer.READY);
-                        canStart = true;
+                        refreshTimerPageSmartCubeUi();
                     }
                 });
             }
@@ -1038,7 +1332,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                         Log.w("dct", "成绩 "+timeRes);
                         if (!wca || currentScramble.isBlindfoldScramble()) { penaltyTime = 0; isDNF = false;}
                         timer.setTimerState(DCTTimer.READY);
-                        save(timeRes);
+                        saveSmartCubeTime(timeRes);
                     }
                 });
             }
@@ -1168,10 +1462,13 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 case R.id.bt_right:    //下一个打乱
                     showNextScramble();
                     break;
+                case R.id.bt_cube_reset:
+                    resetSmartCubeToSolved();
+                    break;
                 case R.id.btn_scan: //扫描设备
-                    btnScan.setVisibility(View.GONE);
-                    pbScan.setVisibility(View.VISIBLE);
-                    bluetoothTools.startScan();
+                    if (ensureBlePermissions()) {
+                        startBleScanInternal();
+                    }
                     break;
             }
         }
@@ -1424,25 +1721,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                                 stackmat.stop();
                                 stackmat = null;
                             }
-                            if (Build.VERSION.SDK_INT < 18 || !getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
-                                Toast.makeText(context, R.string.ble_not_supported, Toast.LENGTH_SHORT).show();
-                                return;
-                            }
-                            bluetoothTools.disconnect();
-                            setTimerText("0" + (decimalMark == 0 ? "." : ",") + (timerAccuracy == 0 ? "00" : "000"));
-                            if (bluetoothTools.initBluetoothAdapter()) {
-                                if (Build.VERSION.SDK_INT > 22) {
-                                    if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION)
-                                            != PackageManager.PERMISSION_GRANTED) {
-                                        //申请WRITE_EXTERNAL_STORAGE权限
-                                        ActivityCompat.requestPermissions(MainActivity.this, new String[] { Manifest.permission.ACCESS_FINE_LOCATION },
-                                                6);
-                                    } else scanDevice();
-                                } else scanDevice();
-                            } else {
-                                Toast.makeText(context, R.string.ble_not_supported, Toast.LENGTH_SHORT).show();
-                                return;
-                            }
+                            startBleScanFlow();
                         }
                         //else
                         setPref("tiway", i);
@@ -2544,8 +2823,10 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             btnRight.setVisibility(vi);
         }
         toolbar.setVisibility(vi);
-        if (showImage)
+        if (showImage || shouldShowTimerPageCubeState())
             scrambleView.setVisibility(vi);
+        if (btnCubeReset != null)
+            btnCubeReset.setVisibility(v && shouldShowTimerPageCubeState() ? View.VISIBLE : View.GONE);
     }
 
     public void setBackgroundColor() {
@@ -2656,12 +2937,21 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         scrambleView.setLayoutParams(params);
     }
 
+    private void setSmartCubeImageSize() {
+        RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams((int) (imageSize * dpi * 0.67f), (int) (imageSize * dpi * 0.76f));
+        params.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
+        params.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
+        params.setMargins(0, 0, 0, APP.getPixel(5));
+        scrambleView.setLayoutParams(params);
+    }
+
     private void setTextsColor() {
         int color = APP.getTextColor();
         setTimerColor(color);
         tvScramble.setTextColor(color);
         tvStat.setTextColor(color);
         btnScramble.setTextColor(color);
+        btnCubeReset.setTextColor(color);
         //toolbar.setTitleTextColor(colors[1]);
     }
 
@@ -2768,36 +3058,55 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
-                if (currentScramble.getScrambleListSize() > 1) {
-                    tvScramble.setText(currentScramble.getScrambleWithIndicator(dm.heightPixels < dpi * 376));
-                    btnLeft.setVisibility(View.VISIBLE);
-                    btnLeft.setEnabled(true);
-                    btnRight.setVisibility(View.VISIBLE);
-                    btnLeft.setEnabled(true);
-                } else {
-                    tvScramble.setText(currentScramble.getScrambleWithHint(dm.heightPixels < dpi * 376));
-                    btnLeft.setVisibility(View.GONE);
-                    btnRight.setVisibility(View.GONE);
-                }
+                updateScrambleTextView();
                 showScrambleView();
+                updateSmartCubeResetButton();
             }
         });
     }
 
     private void showNextScramble() {
+        clearSmartCubeScrambleCache();
         tvScramble.setText(currentScramble.getNextScramble(dm.heightPixels < dpi * 376));
         showScrambleView();
+        updateSmartCubeResetButton();
     }
 
     private void showLastScramble() {
+        clearSmartCubeScrambleCache();
         tvScramble.setText(currentScramble.getLastScramble(dm.heightPixels < dpi * 376));
         showScrambleView();
+        updateSmartCubeResetButton();
     }
 
     private void showScrambleView() {   //显示打乱状态
-        if (!showImage) return;
+        final SmartCube cube = getActiveSmartCube();
+        if (!showImage && cube == null) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    scrambleView.setVisibility(View.GONE);
+                }
+            });
+            return;
+        }
         //Log.w("dct", currentScramble.getCategory()+", "+currentScramble.getImageType());
-        if (currentScramble.getImageType() > 0) {
+        if (cube != null && !TextUtils.isEmpty(cube.getCubeState())) {
+            setSmartCubeImageSize();
+            bmScrambleView = Utils.drawCubeState3D(cube.getCubeState());
+            if (bmScrambleView != null) {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        scrambleView.setVisibility(View.VISIBLE);
+                        scrambleView.setImageBitmap(bmScrambleView);
+                    }
+                });
+                return;
+            }
+        }
+        if (currentScramble.getImageType() > 0 && showImage) {
+            setImageSize();
             bmScrambleView = Bitmap.createBitmap(dip300, dip300 * 3 / 4, Bitmap.Config.ARGB_8888);
             Canvas c = new Canvas(bmScrambleView);
             c.drawColor(0);
@@ -3155,6 +3464,12 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 }
             }).show();
         } else addTime(time, 2);
+        isDNF = false;
+    }
+
+    private void saveSmartCubeTime(int time) {
+        addTime(time, 0);
+        penaltyTime = 0;
         isDNF = false;
     }
 

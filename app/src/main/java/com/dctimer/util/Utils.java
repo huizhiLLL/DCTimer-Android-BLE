@@ -645,87 +645,80 @@ public class Utils {
     }
 
     public static Bitmap drawCubeState3D(String facelets) {
-        if (facelets == null || facelets.length() < 54) return null;
-        String center = new String(
-                new char[] {
-                        facelets.charAt(4),
-                        facelets.charAt(13),
-                        facelets.charAt(22),
-                        facelets.charAt(31),
-                        facelets.charAt(40),
-                        facelets.charAt(49)
-                }
-        );
-        byte[] f = new byte[54];
-        for (int i = 0; i < 54; i++) {
-            f[i] = (byte) center.indexOf(facelets.charAt(i));
-            if (f[i] == -1) {
-                f[i] = 6;
-            }
-        }
-        int[] color = {Color.WHITE, Color.RED, 0xff009900, Color.YELLOW, 0xffff9900, Color.BLUE, Color.GRAY};
-        Bitmap bitmap = Bitmap.createBitmap(APP.getPixel(260), APP.getPixel(220), Bitmap.Config.ARGB_8888);
-        Canvas c = new Canvas(bitmap);
-        c.drawColor(0);
+        if (facelets == null || facelets.length() < 27) return null;
+        final float hsq3 = (float) (Math.sqrt(3) / 2);
+        final float width = 20f;
+        final float gap = 1f;
+        final float[][] transforms = {
+                {width * hsq3, -width * hsq3, (width * 3 + gap) * hsq3, width / 2f, width / 2f, 0f},
+                {width * hsq3, 0f, (width * 3 + gap * 2) * hsq3, -width / 2f, width, width * 3 + gap * 1.5f},
+                {width * hsq3, 0f, 0f, width / 2f, width, width * 1.5f + gap * 1.5f},
+        };
+        final float svgWidth = (6 * width + gap * 2) * hsq3;
+        final float svgHeight = 6 * width + gap * 1.5f;
+        final float scale = APP.dpi * 1.25f;
+
+        Bitmap bitmap = Bitmap.createBitmap(Math.max(1, Math.round(svgWidth * scale)),
+                Math.max(1, Math.round(svgHeight * scale)), Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        canvas.drawColor(0);
 
         Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         fillPaint.setStyle(Paint.Style.FILL);
         Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         strokePaint.setStyle(Paint.Style.STROKE);
         strokePaint.setColor(0xff000000);
-        strokePaint.setStrokeWidth(Math.max(1f, APP.dpi * 1.2f));
-        Paint shadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        shadowPaint.setStyle(Paint.Style.FILL);
-        shadowPaint.setColor(0x22000000);
+        strokePaint.setStrokeWidth(Math.max(1f, APP.dpi));
+        strokePaint.setStrokeJoin(Paint.Join.ROUND);
 
-        float size = APP.dpi * 18f;
-        float originX = APP.dpi * 120f;
-        float originY = APP.dpi * 76f;
-        float[] topCol = {size, -size * 0.5f};
-        float[] topRow = {-size, -size * 0.5f};
-        float[] down = {0f, size};
-        float[] rightDepth = {size, size * 0.5f};
-
-        drawFaceGrid(c, fillPaint, strokePaint, shadowPaint, f, color, 0, originX, originY, topCol, topRow);
-        drawFaceGrid(c, fillPaint, strokePaint, shadowPaint, f, color, 9,
-                originX + topCol[0] * 3, originY + topCol[1] * 3, rightDepth, down);
-        drawFaceGrid(c, fillPaint, strokePaint, shadowPaint, f, color, 18, originX, originY, topCol, down);
+        String pieces = facelets.substring(0, 27);
+        for (int i = 0; i < 27; i++) {
+            int x = i % 3;
+            int y = (i / 3) % 3;
+            float[][] polygon = {
+                    {x, x + 1f, x + 1f, x},
+                    {y, y, y + 1f, y + 1f}
+            };
+            float[] transformed = transformPolygon(polygon, transforms[i / 9], scale);
+            Path path = new Path();
+            path.moveTo(transformed[0], transformed[1]);
+            path.lineTo(transformed[2], transformed[3]);
+            path.lineTo(transformed[4], transformed[5]);
+            path.lineTo(transformed[6], transformed[7]);
+            path.close();
+            fillPaint.setColor(face3Color(pieces.charAt(i)));
+            canvas.drawPath(path, fillPaint);
+            canvas.drawPath(path, strokePaint);
+        }
         return bitmap;
     }
 
-    private static void drawFaceGrid(Canvas c, Paint fillPaint, Paint strokePaint, Paint shadowPaint,
-                                     byte[] facelets, int[] colors, int faceStart, float startX, float startY,
-                                     float[] colVec, float[] rowVec) {
-        for (int row = 0; row < 3; row++) {
-            for (int col = 0; col < 3; col++) {
-                int index = faceStart + row * 3 + col;
-                float x = startX + colVec[0] * col + rowVec[0] * row;
-                float y = startY + colVec[1] * col + rowVec[1] * row;
-                Path path = createQuad(
-                        x, y,
-                        x + colVec[0], y + colVec[1],
-                        x + colVec[0] + rowVec[0], y + colVec[1] + rowVec[1],
-                        x + rowVec[0], y + rowVec[1]
-                );
-                c.save();
-                c.translate(APP.dpi * 0.8f, APP.dpi * 0.8f);
-                c.drawPath(path, shadowPaint);
-                c.restore();
-                fillPaint.setColor(colors[facelets[index] & 0xff]);
-                c.drawPath(path, fillPaint);
-                c.drawPath(path, strokePaint);
-            }
+    private static float[] transformPolygon(float[][] polygon, float[] trans, float scale) {
+        float[] result = new float[polygon[0].length * 2];
+        for (int i = 0; i < polygon[0].length; i++) {
+            result[i * 2] = (polygon[0][i] * trans[0] + polygon[1][i] * trans[1] + trans[2]) * scale;
+            result[i * 2 + 1] = (polygon[0][i] * trans[3] + polygon[1][i] * trans[4] + trans[5]) * scale;
         }
+        return result;
     }
 
-    private static Path createQuad(float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4) {
-        Path path = new Path();
-        path.moveTo(x1, y1);
-        path.lineTo(x2, y2);
-        path.lineTo(x3, y3);
-        path.lineTo(x4, y4);
-        path.close();
-        return path;
+    private static int face3Color(char face) {
+        switch (face) {
+            case 'U':
+                return Color.WHITE;
+            case 'R':
+                return 0xfff00000;
+            case 'F':
+                return 0xff00aa00;
+            case 'D':
+                return Color.YELLOW;
+            case 'L':
+                return 0xffff8800;
+            case 'B':
+                return 0xff0033cc;
+            default:
+                return 0xff888888;
+        }
     }
 
     public static List<String> getOrientationVariants(String facelets) {

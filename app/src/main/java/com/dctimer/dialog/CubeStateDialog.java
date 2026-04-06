@@ -60,7 +60,11 @@ public class CubeStateDialog extends DialogFragment {
         btMarkSolve.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                cube.markSolved();
+                if (getActivity() instanceof MainActivity) {
+                    ((MainActivity) getActivity()).resetSmartCubeToSolved();
+                } else {
+                    cube.markSolved();
+                }
                 setImage();
             }
         });
