@@ -44,6 +44,9 @@ public class BluetoothTools {
     public static final UUID CHARACTER_UUID_F6 = UUID.fromString("0000fff6" + UUID_SUFFIX);
     public static final UUID CHARACTER_UUID_F7 = UUID.fromString("0000fff7" + UUID_SUFFIX);
     private static final String UUID_GAN_V2_SUFFIX = "-cd67-11e9-a32f-2a2ae2dbcce4";
+    public static final UUID SERVICE_UUID_GAN_V2 = UUID.fromString("6e400001-b5a3-f393-e0a9-e50e24dc4179");
+    public static final UUID SERVICE_UUID_GAN_V3 = UUID.fromString("8653000a-43e6-47b7-9cb0-5fc21d4ae340");
+    public static final UUID SERVICE_UUID_GAN_V4 = UUID.fromString("00000010-0000-fff7-fff6-fff5fff4fff0");
     public static final UUID CHARACTER_UUID_V2_READ = UUID.fromString("28be4cb6" + UUID_GAN_V2_SUFFIX);
     public static final UUID CHARACTER_UUID_V2_WRITE = UUID.fromString("28be4a4a" + UUID_GAN_V2_SUFFIX);
 
@@ -62,10 +65,10 @@ public class BluetoothTools {
     private SmartTimer.TimeChangedCallback timeChangedCallback;
     private BluetoothGatt mBluetoothGatt;
     private BluetoothGattService service;
-    private Moyu32CubeProtocol moyu32Protocol;
+    private SmartCubeProtocol smartCubeProtocol;
     private List<Integer> preMoves = new ArrayList<>();
     private int prevMoveCnt = -1;
-    private long lastTime;
+    private long lastTime = -1;
     
     private BluetoothGattService findServiceByCharacteristic(BluetoothGatt gatt, UUID readUuid, UUID writeUuid) {
         if (gatt == null) return null;
@@ -102,11 +105,114 @@ public class BluetoothTools {
         cubeList = new ArrayList<>();
     }
 
-    private int resolveDeviceType(String deviceName) {
+    private int guessDeviceType(String deviceName) {
         if (deviceName != null && deviceName.startsWith("WCU_MY3")) {
             return BLEDevice.TYPE_MOYU32_CUBE;
         }
-        return bleDeviceType;
+        if (isQiyiCubeName(deviceName)) {
+            return BLEDevice.TYPE_QIYI_CUBE;
+        }
+        if (isGiikerCubeName(deviceName)) {
+            return BLEDevice.TYPE_GIIKER_CUBE;
+        }
+        if (isGanTimerName(deviceName)) {
+            return BLEDevice.TYPE_GAN_TIMER;
+        }
+        if (isGanCubeName(deviceName)) {
+            return BLEDevice.TYPE_GANI_CUBE;
+        }
+        return BLEDevice.TYPE_UNKNOWN;
+    }
+
+    private boolean isQiyiCubeName(String deviceName) {
+        if (deviceName == null) return false;
+        String normalized = deviceName.trim().toUpperCase(Locale.US);
+        return normalized.startsWith("QY-QYSC") || normalized.startsWith("XMD-TORNADOV4-I");
+    }
+
+    private boolean isGiikerCubeName(String deviceName) {
+        if (deviceName == null) return false;
+        String normalized = deviceName.trim();
+        return normalized.startsWith("Gi")
+                || normalized.startsWith("Mi Smart Magic Cube")
+                || normalized.startsWith("Hi-");
+    }
+
+    private boolean isGanCubeName(String deviceName) {
+        if (deviceName == null) return false;
+        String normalized = deviceName.trim().toUpperCase(Locale.US);
+        return normalized.startsWith("GAN")
+                || normalized.startsWith("MG")
+                || normalized.startsWith("AICUBE");
+    }
+
+    private boolean isGanTimerName(String deviceName) {
+        if (deviceName == null) return false;
+        String normalized = deviceName.trim().toUpperCase(Locale.US);
+        return normalized.contains("TIMER");
+    }
+
+    private int resolveDeviceType(BluetoothGatt gatt, String deviceName) {
+        int guessedType = guessDeviceType(deviceName);
+        if (guessedType == BLEDevice.TYPE_MOYU32_CUBE || guessedType == BLEDevice.TYPE_QIYI_CUBE) {
+            return guessedType;
+        }
+        if (gatt == null) {
+            return guessedType;
+        }
+        if (gatt.getService(Moyu32CubeProtocol.SERVICE_UUID) != null
+                || findServiceByCharacteristic(gatt, Moyu32CubeProtocol.READ_UUID, Moyu32CubeProtocol.WRITE_UUID) != null) {
+            return BLEDevice.TYPE_MOYU32_CUBE;
+        }
+        if (gatt.getService(SERVICE_UUID_GAN_V2) != null
+                || gatt.getService(SERVICE_UUID_GAN_V3) != null
+                || gatt.getService(SERVICE_UUID_GAN_V4) != null) {
+            return BLEDevice.TYPE_GANI_CUBE;
+        }
+        BluetoothGattService ganService = gatt.getService(SERVICE_UUID_GAN);
+        if (ganService != null) {
+            boolean hasTimerRead = ganService.getCharacteristic(CHARACTER_UUID_F2) != null;
+            boolean hasCubeRead = ganService.getCharacteristic(CHARACTER_UUID_F5) != null
+                    && ganService.getCharacteristic(CHARACTER_UUID_F6) != null
+                    && ganService.getCharacteristic(CHARACTER_UUID_F7) != null;
+            if (gatt.getService(SERVICE_UUID) != null || hasCubeRead) {
+                return BLEDevice.TYPE_GANI_CUBE;
+            }
+            if (hasTimerRead || isGanTimerName(deviceName)) {
+                return BLEDevice.TYPE_GAN_TIMER;
+            }
+        }
+        if (gatt.getService(SERVICE_UUID_GIIKER) != null || gatt.getService(SERVICE_UUID_RW) != null) {
+            return BLEDevice.TYPE_GIIKER_CUBE;
+        }
+        return guessedType;
+    }
+
+    private SmartCubeProtocol createSmartCubeProtocol(int deviceType, SmartCube cube) {
+        if (deviceType == BLEDevice.TYPE_MOYU32_CUBE) {
+            return new Moyu32CubeProtocol(context, cube);
+        }
+        if (deviceType == BLEDevice.TYPE_QIYI_CUBE) {
+            return new QiyiCubeProtocol(context, cube);
+        }
+        return null;
+    }
+
+    private void clearSmartCubeProtocol() {
+        if (smartCubeProtocol != null) {
+            smartCubeProtocol.clear();
+            smartCubeProtocol = null;
+        }
+    }
+
+    private void clearConnectedDeviceState() {
+        clearSmartCubeProtocol();
+        smartCube = null;
+        smartTimer = null;
+        service = null;
+        prevMoveCnt = -1;
+        lastTime = -1;
+        preMoves.clear();
     }
 
     public boolean initBluetoothAdapter() {
@@ -266,7 +372,7 @@ public class BluetoothTools {
         }
         connectedIndex = pos;
         BLEDevice bleDevice = cubeList.get(pos);
-        bleDeviceType = resolveDeviceType(bleDevice.getName());
+        bleDeviceType = guessDeviceType(bleDevice.getName());
         Log.w("dct", "连接设备 " + bleDevice.getName() + " 使用类型 " + bleDeviceType);
         String address = bleDevice.getAddress();
         int connect = bleDevice.getConnected();
@@ -274,12 +380,7 @@ public class BluetoothTools {
             try {
                 BluetoothDevice device = bluetoothAdapter.getRemoteDevice(address);
                 bleDevice.setConnected(2);
-                if (bleDeviceType == BLEDevice.TYPE_GAN_TIMER) {
-                    smartTimer = new SmartTimer();
-                } else {
-                    smartCube = new SmartCube();
-                }
-                moyu32Protocol = null;
+                clearConnectedDeviceState();
                 context.refreshCubeList();
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                     mBluetoothGatt = device.connectGatt(context, false, mBluetoothGattCallback, BluetoothDevice.TRANSPORT_LE);
@@ -299,8 +400,7 @@ public class BluetoothTools {
             mBluetoothGatt.disconnect();
             mBluetoothGatt = null;
         }
-        smartCube = null;
-        moyu32Protocol = null;
+        clearConnectedDeviceState();
     }
 
     @TargetApi(18)
@@ -312,17 +412,6 @@ public class BluetoothTools {
                 context.dismissDialog();
                 BLEDevice bleDevice = cubeList.get(connectedIndex);
                 bleDevice.setConnected(1);
-                if (bleDeviceType == BLEDevice.TYPE_GAN_ROBOT) {
-
-                } else if (bleDeviceType == BLEDevice.TYPE_GAN_TIMER) {
-                    smartTimer.setTimeChangedCallback(timeChangedCallback);
-                } else {
-                    smartCube.setType(bleDeviceType);
-                    smartCube.setStateChangedCallback(stateChangedCallback);
-                    if (bleDeviceType == BLEDevice.TYPE_MOYU32_CUBE) {
-                        moyu32Protocol = new Moyu32CubeProtocol(context, smartCube);
-                    }
-                }
                 gatt.discoverServices();
             }
             if (newState == BluetoothGatt.STATE_DISCONNECTED) {
@@ -331,26 +420,55 @@ public class BluetoothTools {
                 //mBluetoothGatt = null;
                 BLEDevice bleDevice = cubeList.get(connectedIndex);
                 bleDevice.setConnected(0);
-                moyu32Protocol = null;
+                clearConnectedDeviceState();
                 context.disconnectHint(bleDevice);
             }
         }
 
         @Override
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+            bleDeviceType = resolveDeviceType(gatt, gatt.getDevice().getName());
             Log.w("dct", "onServicesDiscovered bleDeviceType=" + bleDeviceType);
             logDiscoveredServices(gatt);
-            if (bleDeviceType == BLEDevice.TYPE_GAN_TIMER)
+            clearConnectedDeviceState();
+            if (bleDeviceType == BLEDevice.TYPE_GAN_TIMER) {
+                smartTimer = new SmartTimer();
+                smartTimer.setTimeChangedCallback(timeChangedCallback);
                 service = gatt.getService(SERVICE_UUID_GAN);
-            else if (bleDeviceType == BLEDevice.TYPE_GANI_CUBE)
+            } else if (bleDeviceType == BLEDevice.TYPE_GANI_CUBE) {
+                smartCube = new SmartCube();
+                smartCube.setType(bleDeviceType);
+                smartCube.setStateChangedCallback(stateChangedCallback);
                 service = gatt.getService(SERVICE_UUID);
-            else if (bleDeviceType == BLEDevice.TYPE_MOYU32_CUBE)
+            } else if (bleDeviceType == BLEDevice.TYPE_MOYU32_CUBE) {
+                smartCube = new SmartCube();
+                smartCube.setType(bleDeviceType);
+                smartCube.setStateChangedCallback(stateChangedCallback);
+                smartCubeProtocol = createSmartCubeProtocol(bleDeviceType, smartCube);
                 service = gatt.getService(Moyu32CubeProtocol.SERVICE_UUID);
-            else service = gatt.getService(SERVICE_UUID_RW);
+            } else if (bleDeviceType == BLEDevice.TYPE_QIYI_CUBE) {
+                smartCube = new SmartCube();
+                smartCube.setType(bleDeviceType);
+                smartCube.setStateChangedCallback(stateChangedCallback);
+                smartCubeProtocol = createSmartCubeProtocol(bleDeviceType, smartCube);
+                service = gatt.getService(QiyiCubeProtocol.SERVICE_UUID);
+            } else if (bleDeviceType == BLEDevice.TYPE_GIIKER_CUBE) {
+                smartCube = new SmartCube();
+                smartCube.setType(bleDeviceType);
+                smartCube.setStateChangedCallback(stateChangedCallback);
+                service = gatt.getService(SERVICE_UUID_RW);
+            } else {
+                service = null;
+            }
             if (service == null && bleDeviceType == BLEDevice.TYPE_MOYU32_CUBE) {
                 service = findServiceByCharacteristic(gatt, Moyu32CubeProtocol.READ_UUID, Moyu32CubeProtocol.WRITE_UUID);
                 if (service != null) {
                     Log.w("dct", "MoYu32 通过特征兜底定位到 service: " + service.getUuid());
+                }
+            } else if (service == null && bleDeviceType == BLEDevice.TYPE_QIYI_CUBE) {
+                service = findServiceByCharacteristic(gatt, QiyiCubeProtocol.CUBE_UUID, QiyiCubeProtocol.CUBE_UUID);
+                if (service != null) {
+                    Log.w("dct", "QiYi 通过特征兜底定位到 service: " + service.getUuid());
                 }
             }
             if (service == null) {
@@ -358,9 +476,12 @@ public class BluetoothTools {
                 context.runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        Toast.makeText(context, context.getString(R.string.connect_fail), Toast.LENGTH_SHORT).show();
+                        Toast.makeText(context, bleDeviceType == BLEDevice.TYPE_UNKNOWN
+                                ? context.getString(R.string.ble_device_not_supported)
+                                : context.getString(R.string.connect_fail), Toast.LENGTH_SHORT).show();
                     }
                 });
+                gatt.disconnect();
             } else if (bleDeviceType == BLEDevice.TYPE_GAN_TIMER) {
                 BluetoothGattCharacteristic timeChr = service.getCharacteristic(CHARACTER_UUID_F2);
                 if (timeChr == null) {
@@ -382,14 +503,15 @@ public class BluetoothTools {
                 } else {
                     gatt.readCharacteristic(chr);
                 }
-            } else if (bleDeviceType == BLEDevice.TYPE_MOYU32_CUBE) {
-                if (moyu32Protocol == null || !moyu32Protocol.start(gatt, service, gatt.getDevice().getName(), gatt.getDevice().getAddress())) {
+            } else if (bleDeviceType == BLEDevice.TYPE_MOYU32_CUBE || bleDeviceType == BLEDevice.TYPE_QIYI_CUBE) {
+                if (smartCubeProtocol == null || !smartCubeProtocol.start(gatt, service, gatt.getDevice().getName(), gatt.getDevice().getAddress())) {
                     context.runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
                             Toast.makeText(context, context.getString(R.string.connect_fail), Toast.LENGTH_SHORT).show();
                         }
                     });
+                    gatt.disconnect();
                 }
             } else {
                 //BluetoothGattCharacteristic chread = service.getCharacteristic(CHARACTER_UUID_READ);
@@ -612,8 +734,8 @@ public class BluetoothTools {
         public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             UUID uuid = characteristic.getUuid();
             Log.w("dct", "write "+uuid.toString()+" status "+status + " value "+Arrays.toString(characteristic.getValue()));
-            if (bleDeviceType == BLEDevice.TYPE_MOYU32_CUBE && moyu32Protocol != null) {
-                moyu32Protocol.onCharacteristicWrite(characteristic, status);
+            if (smartCubeProtocol != null) {
+                smartCubeProtocol.onCharacteristicWrite(characteristic, status);
                 return;
             }
             if (uuid.equals(CHARACTER_UUID_WRITE)) {
@@ -632,8 +754,8 @@ public class BluetoothTools {
             UUID uuid = characteristic.getUuid();
             byte[] value = characteristic.getValue();
             Log.w("dct", "value changed "+uuid.toString()+" value "+Arrays.toString(value));
-            if (bleDeviceType == BLEDevice.TYPE_MOYU32_CUBE && moyu32Protocol != null) {
-                moyu32Protocol.onCharacteristicChanged(characteristic);
+            if (smartCubeProtocol != null) {
+                smartCubeProtocol.onCharacteristicChanged(characteristic);
                 return;
             }
             if (uuid.equals(CHARACTER_UUID_DATA)) {
@@ -665,8 +787,8 @@ public class BluetoothTools {
 
         @Override
         public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
-            if (bleDeviceType == BLEDevice.TYPE_MOYU32_CUBE && moyu32Protocol != null) {
-                moyu32Protocol.onDescriptorWrite(descriptor, status);
+            if (smartCubeProtocol != null) {
+                smartCubeProtocol.onDescriptorWrite(descriptor, status);
             }
         }
     };

@@ -1009,42 +1009,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         adapter = new BLEDeviceAdapter(this, new ArrayList<BLEDevice>());
         rvDevice.setLayoutManager(new LinearLayoutManager(this));
         rvDevice.setAdapter(adapter);
-        RadioGroup rg = v.findViewById(R.id.rg_type);
-        rg.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(RadioGroup radioGroup, int i) {
-                switch (i) {
-                    case R.id.rb_moyu32:
-                        bleDeviceType = BLEDevice.TYPE_MOYU32_CUBE;
-                        break;
-                    case R.id.rb_gani:
-                        bleDeviceType = BLEDevice.TYPE_GANI_CUBE;
-                        break;
-                    case R.id.rb_giiker:
-                        bleDeviceType = BLEDevice.TYPE_GIIKER_CUBE;
-                        break;
-                    case R.id.rb_gantimer:
-                        bleDeviceType = BLEDevice.TYPE_GAN_TIMER;
-                        break;
-                }
-            }
-        });
-        RadioButton rb;
-        switch (bleDeviceType) {
-            case BLEDevice.TYPE_MOYU32_CUBE:
-                rb = v.findViewById(R.id.rb_moyu32);
-                break;
-            case BLEDevice.TYPE_GANI_CUBE:
-                rb = v.findViewById(R.id.rb_gani);
-                break;
-            case BLEDevice.TYPE_GIIKER_CUBE:
-                rb = v.findViewById(R.id.rb_giiker);
-                break;
-            default:
-                rb = v.findViewById(R.id.rb_gantimer);
-                break;
-        }
-        rb.setChecked(true);
         dialog = new AlertDialog.Builder(this).setView(v)
                 .setNegativeButton(R.string.btn_cancel, new DialogInterface.OnClickListener() {
                     @Override
@@ -1088,7 +1052,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private boolean isSmartCubeDeviceType(int deviceType) {
         return deviceType == BLEDevice.TYPE_GANI_CUBE
                 || deviceType == BLEDevice.TYPE_GIIKER_CUBE
-                || deviceType == BLEDevice.TYPE_MOYU32_CUBE;
+                || deviceType == BLEDevice.TYPE_MOYU32_CUBE
+                || deviceType == BLEDevice.TYPE_QIYI_CUBE;
     }
 
     private SmartCube getActiveSmartCube() {
@@ -3394,7 +3359,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 }
                 isSwipe = false;
             } else if(enterTime == 3) { //蓝牙设备
-                if (bleDeviceType == BLEDevice.TYPE_GANI_CUBE || bleDeviceType == BLEDevice.TYPE_GIIKER_CUBE || bleDeviceType == BLEDevice.TYPE_MOYU32_CUBE) {
+                if (isSmartCubeDeviceType(bleDeviceType)) {
                     if (bluetoothTools.getCube() != null) {
                         CubeStateDialog dialog = CubeStateDialog.newInstance(bluetoothTools.getCube());
                         dialog.show(getSupportFragmentManager(), "CubeState");

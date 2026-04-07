@@ -1,10 +1,12 @@
 # DCTimer-Android-BLE
 
-基于 `DCTimer-Android` 二次开发，目的是补全和完善 Android 12+ 智能魔方计时相关功能（或许加点更好玩的东西）
+基于 `DCTimer-Android` 二次开发，完善了智能魔方计时功能（也可能加点更好玩的东西）
 
 ## 当前进度
 
-- 补全了 `Moyu32` 系列的智能魔方计时功能
+已兼容：
+- `Moyu32`
+- `QiYi` / `Tornado V4`
 
 ## 致谢
 

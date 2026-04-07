@@ -15,7 +15,7 @@ import java.util.ArrayDeque;
 import java.util.Locale;
 import java.util.UUID;
 
-public class Moyu32CubeProtocol {
+public class Moyu32CubeProtocol implements SmartCubeProtocol {
     private static final String TAG = "Moyu32";
     public static final UUID SERVICE_UUID = UUID.fromString("0783b03e-7735-b5a0-1760-a305d2795cb0");
     public static final UUID READ_UUID = UUID.fromString("0783b03e-7735-b5a0-1760-a305d2795cb1");
