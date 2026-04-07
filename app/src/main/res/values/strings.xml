@@ -93,6 +93,7 @@
     <string name="import_fail">Import database failed.</string>
     <string name="import_success">Import database succeeded.</string>
     <string name="permission_deny">Permission denied</string>
+    <string name="ble_location_disabled">Location is turned off. Please enable system location before scanning BLE devices.</string>
     <string name="scan_device">Scanning device…</string>
     <string name="cube_not_connected">" is not connected"</string>
     <string name="ble_not_supported">BLE not supported</string>
@@ -127,6 +128,7 @@
     <string name="btn_detail">Details</string>
     <string name="btn_add">Add</string>
     <string name="btn_delete">Close without saving</string>
+    <string name="btn_open">Open</string>
     <string name="btn_scan">Scan</string>
     <string name="btn_cube_reset">Reset cube</string>
     <string name="btn_refresh">Refresh</string>

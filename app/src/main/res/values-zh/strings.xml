@@ -92,6 +92,7 @@
     <string name="import_fail">导入数据库失败</string>
     <string name="import_success">导入数据库成功</string>
     <string name="permission_deny">权限被拒绝</string>
+    <string name="ble_location_disabled">系统定位未开启，请先打开定位后再扫描蓝牙设备</string>
     <string name="scan_device">正在扫描设备…</string>
     <string name="cube_not_connected">已断开</string>
     <string name="ble_not_supported">当前设备不支持蓝牙BLE</string>
@@ -126,6 +127,7 @@
     <string name="btn_detail">详情</string>
     <string name="btn_add">新建</string>
     <string name="btn_delete">不保存</string>
+    <string name="btn_open">打开</string>
     <string name="btn_scan">扫描</string>
     <string name="btn_cube_reset">重置魔方</string>
     <string name="btn_refresh">刷新</string>

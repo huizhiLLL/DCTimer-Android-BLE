@@ -21,8 +21,10 @@ import android.content.res.Configuration;
 import android.database.Cursor;
 import android.graphics.*;
 import android.hardware.*;
+import android.location.LocationManager;
 import android.net.Uri;
 import android.os.*;
+import android.provider.Settings;
 import android.provider.MediaStore;
 import android.speech.tts.TextToSpeech;
 import android.support.annotation.NonNull;
@@ -947,6 +949,49 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         return false;
     }
 
+    private boolean isLocationServiceEnabled() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return true;
+        }
+        LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        if (locationManager == null) {
+            return false;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            return locationManager.isLocationEnabled();
+        }
+        try {
+            int mode = Settings.Secure.getInt(getContentResolver(), Settings.Secure.LOCATION_MODE);
+            return mode != Settings.Secure.LOCATION_MODE_OFF;
+        } catch (Settings.SettingNotFoundException e) {
+            return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+                    || locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
+        }
+    }
+
+    private void showLocationServiceDisabledHint() {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.status)
+                .setMessage(R.string.ble_location_disabled)
+                .setPositiveButton(R.string.btn_open, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialogInterface, int i) {
+                        openLocationSettings();
+                    }
+                })
+                .setNegativeButton(R.string.btn_cancel, null)
+                .show();
+    }
+
+    private void openLocationSettings() {
+        Intent intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+        if (intent.resolveActivity(getPackageManager()) != null) {
+            startActivity(intent);
+        } else {
+            Toast.makeText(this, R.string.ble_location_disabled, Toast.LENGTH_SHORT).show();
+        }
+    }
+
     private void startStackmat() {
         if (stackmat == null) {
             stackmat = new Stackmat(this, samplingRate, dataFormat);
@@ -1022,6 +1067,10 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private void startBleScanFlow() {
         if (Build.VERSION.SDK_INT < 18 || !getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
             Toast.makeText(context, R.string.ble_not_supported, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (!isLocationServiceEnabled()) {
+            showLocationServiceDisabledHint();
             return;
         }
         if (!ensureBlePermissions()) {

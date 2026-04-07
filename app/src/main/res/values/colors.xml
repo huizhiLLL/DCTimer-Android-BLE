@@ -5,7 +5,7 @@
     <color name="colorAccent">#448AFF</color>
     <color name="colorHeader">#4af</color>
     <color name="colorBackground">#fff</color>
-    <color name="colorText">#222</color>
+    <color name="colorText">#000</color>
     <color name="colorRed">#a00</color>
     <color name="colorGray1">#ddd</color>
     <color name="colorGray2">#666</color>

@@ -89,6 +89,7 @@
     <string name="import_fail">匯入數據庫失敗</string>
     <string name="import_success">匯入數據庫成功</string>
     <string name="permission_deny">權限被拒絕</string>
+    <string name="ble_location_disabled">系統定位未開啟，請先打開定位後再掃描藍牙裝置</string>
     <string name="scan_device">正在掃描…</string>
     <string name="cube_not_connected">已中斷連線</string>
     <string name="ble_not_supported">不支援藍牙BLE</string>
@@ -121,6 +122,7 @@
     <string name="btn_detail">詳情</string>
     <string name="btn_add">新建</string>
     <string name="btn_delete">不保存</string>
+    <string name="btn_open">打開</string>
     <string name="btn_scan">掃描</string>
     <string name="btn_refresh">刷新</string>
     <string name="btn_mark_solve">標記爲還原狀態</string>
