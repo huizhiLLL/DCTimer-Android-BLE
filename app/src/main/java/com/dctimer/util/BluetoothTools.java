@@ -112,13 +112,7 @@ public class BluetoothTools {
         if (isQiyiCubeName(deviceName)) {
             return BLEDevice.TYPE_QIYI_CUBE;
         }
-        if (isGiikerCubeName(deviceName)) {
-            return BLEDevice.TYPE_GIIKER_CUBE;
-        }
-        if (isGanTimerName(deviceName)) {
-            return BLEDevice.TYPE_GAN_TIMER;
-        }
-        if (isGanCubeName(deviceName)) {
+        if (GanCubeProtocol.matchesDeviceName(deviceName)) {
             return BLEDevice.TYPE_GANI_CUBE;
         }
         return BLEDevice.TYPE_UNKNOWN;
@@ -130,31 +124,11 @@ public class BluetoothTools {
         return normalized.startsWith("QY-QYSC") || normalized.startsWith("XMD-TORNADOV4-I");
     }
 
-    private boolean isGiikerCubeName(String deviceName) {
-        if (deviceName == null) return false;
-        String normalized = deviceName.trim();
-        return normalized.startsWith("Gi")
-                || normalized.startsWith("Mi Smart Magic Cube")
-                || normalized.startsWith("Hi-");
-    }
-
-    private boolean isGanCubeName(String deviceName) {
-        if (deviceName == null) return false;
-        String normalized = deviceName.trim().toUpperCase(Locale.US);
-        return normalized.startsWith("GAN")
-                || normalized.startsWith("MG")
-                || normalized.startsWith("AICUBE");
-    }
-
-    private boolean isGanTimerName(String deviceName) {
-        if (deviceName == null) return false;
-        String normalized = deviceName.trim().toUpperCase(Locale.US);
-        return normalized.contains("TIMER");
-    }
-
     private int resolveDeviceType(BluetoothGatt gatt, String deviceName) {
         int guessedType = guessDeviceType(deviceName);
-        if (guessedType == BLEDevice.TYPE_MOYU32_CUBE || guessedType == BLEDevice.TYPE_QIYI_CUBE) {
+        if (guessedType == BLEDevice.TYPE_MOYU32_CUBE
+                || guessedType == BLEDevice.TYPE_QIYI_CUBE
+                || guessedType == BLEDevice.TYPE_GANI_CUBE) {
             return guessedType;
         }
         if (gatt == null) {
@@ -164,26 +138,12 @@ public class BluetoothTools {
                 || findServiceByCharacteristic(gatt, Moyu32CubeProtocol.READ_UUID, Moyu32CubeProtocol.WRITE_UUID) != null) {
             return BLEDevice.TYPE_MOYU32_CUBE;
         }
-        if (gatt.getService(SERVICE_UUID_GAN_V2) != null
-                || gatt.getService(SERVICE_UUID_GAN_V3) != null
-                || gatt.getService(SERVICE_UUID_GAN_V4) != null) {
+        if (gatt.getService(QiyiCubeProtocol.SERVICE_UUID) != null
+                || findServiceByCharacteristic(gatt, QiyiCubeProtocol.CUBE_UUID, QiyiCubeProtocol.CUBE_UUID) != null) {
+            return BLEDevice.TYPE_QIYI_CUBE;
+        }
+        if (GanCubeProtocol.findPrimaryService(gatt) != null) {
             return BLEDevice.TYPE_GANI_CUBE;
-        }
-        BluetoothGattService ganService = gatt.getService(SERVICE_UUID_GAN);
-        if (ganService != null) {
-            boolean hasTimerRead = ganService.getCharacteristic(CHARACTER_UUID_F2) != null;
-            boolean hasCubeRead = ganService.getCharacteristic(CHARACTER_UUID_F5) != null
-                    && ganService.getCharacteristic(CHARACTER_UUID_F6) != null
-                    && ganService.getCharacteristic(CHARACTER_UUID_F7) != null;
-            if (gatt.getService(SERVICE_UUID) != null || hasCubeRead) {
-                return BLEDevice.TYPE_GANI_CUBE;
-            }
-            if (hasTimerRead || isGanTimerName(deviceName)) {
-                return BLEDevice.TYPE_GAN_TIMER;
-            }
-        }
-        if (gatt.getService(SERVICE_UUID_GIIKER) != null || gatt.getService(SERVICE_UUID_RW) != null) {
-            return BLEDevice.TYPE_GIIKER_CUBE;
         }
         return guessedType;
     }
@@ -194,6 +154,9 @@ public class BluetoothTools {
         }
         if (deviceType == BLEDevice.TYPE_QIYI_CUBE) {
             return new QiyiCubeProtocol(context, cube);
+        }
+        if (deviceType == BLEDevice.TYPE_GANI_CUBE) {
+            return new GanCubeProtocol(context, cube);
         }
         return null;
     }
@@ -431,15 +394,12 @@ public class BluetoothTools {
             Log.w("dct", "onServicesDiscovered bleDeviceType=" + bleDeviceType);
             logDiscoveredServices(gatt);
             clearConnectedDeviceState();
-            if (bleDeviceType == BLEDevice.TYPE_GAN_TIMER) {
-                smartTimer = new SmartTimer();
-                smartTimer.setTimeChangedCallback(timeChangedCallback);
-                service = gatt.getService(SERVICE_UUID_GAN);
-            } else if (bleDeviceType == BLEDevice.TYPE_GANI_CUBE) {
+            if (bleDeviceType == BLEDevice.TYPE_GANI_CUBE) {
                 smartCube = new SmartCube();
                 smartCube.setType(bleDeviceType);
                 smartCube.setStateChangedCallback(stateChangedCallback);
-                service = gatt.getService(SERVICE_UUID);
+                smartCubeProtocol = createSmartCubeProtocol(bleDeviceType, smartCube);
+                service = GanCubeProtocol.findPrimaryService(gatt);
             } else if (bleDeviceType == BLEDevice.TYPE_MOYU32_CUBE) {
                 smartCube = new SmartCube();
                 smartCube.setType(bleDeviceType);
@@ -452,11 +412,6 @@ public class BluetoothTools {
                 smartCube.setStateChangedCallback(stateChangedCallback);
                 smartCubeProtocol = createSmartCubeProtocol(bleDeviceType, smartCube);
                 service = gatt.getService(QiyiCubeProtocol.SERVICE_UUID);
-            } else if (bleDeviceType == BLEDevice.TYPE_GIIKER_CUBE) {
-                smartCube = new SmartCube();
-                smartCube.setType(bleDeviceType);
-                smartCube.setStateChangedCallback(stateChangedCallback);
-                service = gatt.getService(SERVICE_UUID_RW);
             } else {
                 service = null;
             }
@@ -482,28 +437,9 @@ public class BluetoothTools {
                     }
                 });
                 gatt.disconnect();
-            } else if (bleDeviceType == BLEDevice.TYPE_GAN_TIMER) {
-                BluetoothGattCharacteristic timeChr = service.getCharacteristic(CHARACTER_UUID_F2);
-                if (timeChr == null) {
-                    Log.e("dct", "获取时间失败");
-                } else {
-                    Log.w("dct", "chr: "+timeChr);
-                    gatt.readCharacteristic(timeChr);
-                }
-            } else if (bleDeviceType == BLEDevice.TYPE_GANI_CUBE) {
-                BluetoothGattCharacteristic chr = service.getCharacteristic(CHARACTER_UUID_VERSION);
-                if (chr == null) {
-                    Log.e("dct", "获取设备版本失败");
-                    context.runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            Toast.makeText(context, context.getString(R.string.connect_fail), Toast.LENGTH_SHORT).show();
-                        }
-                    });
-                } else {
-                    gatt.readCharacteristic(chr);
-                }
-            } else if (bleDeviceType == BLEDevice.TYPE_MOYU32_CUBE || bleDeviceType == BLEDevice.TYPE_QIYI_CUBE) {
+            } else if (bleDeviceType == BLEDevice.TYPE_MOYU32_CUBE
+                    || bleDeviceType == BLEDevice.TYPE_QIYI_CUBE
+                    || bleDeviceType == BLEDevice.TYPE_GANI_CUBE) {
                 if (smartCubeProtocol == null || !smartCubeProtocol.start(gatt, service, gatt.getDevice().getName(), gatt.getDevice().getAddress())) {
                     context.runOnUiThread(new Runnable() {
                         @Override
@@ -513,46 +449,12 @@ public class BluetoothTools {
                     });
                     gatt.disconnect();
                 }
-            } else {
-                //BluetoothGattCharacteristic chread = service.getCharacteristic(CHARACTER_UUID_READ);
-//                if (gatt.setCharacteristicNotification(chread, true)) {
-//                    Log.w("dct", "电量监听");
-//                    for (BluetoothGattDescriptor descriptor : chread.getDescriptors()){
-//                        if ((chread.getProperties() & BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0) {
-//                            descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-//                        } else if ((chread.getProperties() & BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0) {
-//                            descriptor.setValue(BluetoothGattDescriptor.ENABLE_INDICATION_VALUE);
-//                        }
-//                        gatt.writeDescriptor(descriptor);
-//                    }
-//                } else Log.e("dct", "无法监听");
-                //gatt.readCharacteristic(chread);
-//                try {
-//                    Thread.sleep(200);
-//                } catch (Exception e) {}
-//                BluetoothGattCharacteristic chwrite = service.getCharacteristic(CHARACTER_UUID_WRITE);
-//                if (chwrite == null) {
-//                    Log.e("dct", "获取电量信息失败");
-//                } else {
-//                    Log.w("dct", "获取电量");
-//                    chwrite.setValue(new byte[] {-75});
-//                    gatt.writeCharacteristic(chwrite);
-//                }
-//                try {
-//                    Thread.sleep(200);
-//                } catch (Exception e) {}
-                service = gatt.getService(SERVICE_UUID_GIIKER);
-                if (service == null) Log.e("dct", "service为null");
-                else {
-                    Log.w("dct", "获取数据");
-                    BluetoothGattCharacteristic chr = service.getCharacteristic(CHARACTER_UUID_DATA);
-                    gatt.readCharacteristic(chr);
-                }
             }
         }
 
         @Override
         public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+            // 以下 legacy 逻辑仅作旧代码备份，当前产品主链不会再进入这些分支。
             UUID uuid = characteristic.getUuid();
             byte[] value = characteristic.getValue();
             //Log.w("dct", "uuid "+uuid.toString()+" value "+Arrays.toString(value));

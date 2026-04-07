@@ -1051,7 +1051,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
     private boolean isSmartCubeDeviceType(int deviceType) {
         return deviceType == BLEDevice.TYPE_GANI_CUBE
-                || deviceType == BLEDevice.TYPE_GIIKER_CUBE
                 || deviceType == BLEDevice.TYPE_MOYU32_CUBE
                 || deviceType == BLEDevice.TYPE_QIYI_CUBE;
     }
