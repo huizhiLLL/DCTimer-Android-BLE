@@ -7,7 +7,7 @@ import com.dctimer.activity.TestActivity;
 import android.app.Activity;
 import android.media.*;
 import android.os.AsyncTask;
-import android.support.v4.app.FragmentActivity;
+import androidx.fragment.app.FragmentActivity;
 import android.util.Log;
 
 import java.util.ArrayList;

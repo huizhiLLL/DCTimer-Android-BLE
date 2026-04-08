@@ -25,23 +25,21 @@ import android.location.LocationManager;
 import android.net.Uri;
 import android.os.*;
 import android.provider.Settings;
-import android.provider.MediaStore;
 import android.speech.tts.TextToSpeech;
-import android.support.annotation.NonNull;
-import android.support.design.widget.Snackbar;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.content.ContextCompat;
-import android.support.v4.content.FileProvider;
-import android.support.v4.view.GravityCompat;
-import android.support.v4.widget.DrawerLayout;
-import android.support.v4.widget.TextViewCompat;
-import android.support.v7.app.ActionBarDrawerToggle;
-import android.support.v7.app.AlertDialog;
-import android.support.v7.app.AppCompatActivity;
-import android.support.v7.app.AppCompatDelegate;
-import android.support.v7.widget.AppCompatTextView;
-import android.support.v7.widget.LinearLayoutManager;
-import android.support.v7.widget.RecyclerView;
+import androidx.annotation.NonNull;
+import com.google.android.material.snackbar.Snackbar;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import androidx.core.view.GravityCompat;
+import androidx.drawerlayout.widget.DrawerLayout;
+import androidx.core.widget.TextViewCompat;
+import androidx.appcompat.app.ActionBarDrawerToggle;
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.app.AppCompatDelegate;
+import androidx.appcompat.widget.AppCompatTextView;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 import android.text.Editable;
 import android.text.Html;
 import android.text.SpannableStringBuilder;
@@ -51,7 +49,7 @@ import android.text.TextWatcher;
 import android.text.style.ForegroundColorSpan;
 import android.util.Log;
 import android.view.*;
-import android.support.design.widget.NavigationView;
+import com.google.android.material.navigation.NavigationView;
 import android.widget.*;
 
 import com.dctimer.APP;
@@ -67,8 +65,6 @@ import com.dingmouren.colorpicker.ColorPickerDialog;
 import com.dingmouren.colorpicker.OnColorPickerListener;
 
 import java.io.*;
-import java.net.URL;
-import java.net.URLConnection;
 import java.util.*;
 
 import cs.min2phase.Tools;
@@ -128,7 +124,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private EditText editText;
     private ProgressDialog progressDialog;
     private AlertDialog dialog;
-    private FileSelectorDialog fileSelectorDialog;
 
     private SettingAdapter stAdapter;
     private RecyclerView rvSetting;    //设置列表
@@ -145,6 +140,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     public SessionManager sessionManager;
     private List<Integer> searchResult = new ArrayList<>();
     private int searchIndex;
+    private int pendingScrambleExportCount;
 
     public boolean canStart;
     public int lastScrambleType = -64;
@@ -157,10 +153,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private int selectIdx, selectIdx2;
     private int startX, startY;
     private int gesture;
-    private int version;
     private long exitTime = 0;
     //private List<String> nextScramble = new ArrayList<>();
-    private String newVersion, updateCont;
     private TextToSpeech tts;
     private SensorManager sensorManager;
     private Sensor sensor;
@@ -176,7 +170,11 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private BLEDeviceAdapter adapter;
     //private SmartCube cube;
 
-    private static final String[] PERMISSIONS = { android.Manifest.permission.WRITE_EXTERNAL_STORAGE };
+    private static final int REQUEST_BACKGROUND_IMAGE = 1;
+    private static final int REQUEST_IMPORT_DATABASE = 9;
+    private static final int REQUEST_EXPORT_DATABASE = 10;
+    private static final int REQUEST_IMPORT_SCRAMBLE = 11;
+    private static final int REQUEST_EXPORT_SCRAMBLE = 12;
     private static final int REQUEST_BLE_PERMISSION = 6;
     private static final int ANDROID_API_S = 31;
     private static final String PERMISSION_BLUETOOTH_SCAN = "android.permission.BLUETOOTH_SCAN";
@@ -192,20 +190,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Window window = getWindow();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {   //6.0
-
-        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {    //5.0
-            window.getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
-            //window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
-            //window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
-            window.addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
-            window.setStatusBarColor(0);
-            //window.setNavigationBarColor(0xff000000);
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {   //4.4
-            window.addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
-            window.addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
-            //setPrimaryDark();
+            window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
         }
         setContentView(R.layout.activity_main);
         context = this;
@@ -223,8 +209,11 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         } else getWindowManager().getDefaultDisplay().getMetrics(dm);
         //Log.w("dct", dm.widthPixels+"x"+dm.heightPixels);
         //System.out.println(dpi+", "+dm.widthPixels);
-        if (Environment.getExternalStorageState().equals(Environment.MEDIA_MOUNTED)) {
-            defaultPath = Environment.getExternalStorageDirectory().getPath() + "/DCTimer-BLE/";
+        File appExternalDir = getExternalFilesDir(null);
+        if (appExternalDir != null) {
+            defaultPath = new File(appExternalDir, "DCTimer-BLE").getAbsolutePath() + File.separator;
+        } else {
+            defaultPath = getFilesDir().getAbsolutePath() + File.separator;
         }
         dataPath = getFilesDir().getParent() + "/databases/";
         //Log.w("dct", "path: "+context.getFilesDir().getPath());
@@ -240,7 +229,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             StringUtils.scrambleSubitems[i] = getResources().getStringArray(subid[i]);
         for (int i = 0; i < itemStr.length; i++)
             itemStr[i] = getResources().getStringArray(ITEMS_ID[i]);
-        version = Utils.getVersion(context);
         if (screenOn) acquireWakeLock();
         toolbar = findViewById(R.id.toolbar); //工具栏
         toolbar.setTitle("");
@@ -433,6 +421,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         setScramble();
 
         tvTest = findViewById(R.id.tv_test);
+        tvStat.bringToFront();
+        tvTest.bringToFront();
         sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
         sensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         bluetoothTools = new BluetoothTools(this);
@@ -608,12 +598,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 dialog.show(getSupportFragmentManager(), "ImportScramble");
                 break;
             case R.id.action_export_scramble:   //导出打乱
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    //权限已授权 GRANTED:授权 DENIED:拒绝
-                    if (ContextCompat.checkSelfPermission(context, PERMISSIONS[0]) == PackageManager.PERMISSION_GRANTED) {
-                        ExportScrambleDialog.newInstance(btnScramble.getText().toString()).show(getSupportFragmentManager(), "ExportScramble");
-                    } else ActivityCompat.requestPermissions(this, PERMISSIONS, 4);
-                } else ExportScrambleDialog.newInstance(btnScramble.getText().toString()).show(getSupportFragmentManager(), "ExportScramble");
+                ExportScrambleDialog.newInstance(btnScramble.getText().toString()).show(getSupportFragmentManager(), "ExportScramble");
                 break;
             case R.id.action_last:  //上一次成绩
                 if (result.length() != 0) {
@@ -735,11 +720,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         // Handle navigation view item clicks here.
         switch (item.getItemId()) {
             case R.id.nav_import_export:   //导入导出数据库
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    if (ContextCompat.checkSelfPermission(context, PERMISSIONS[0]) == PackageManager.PERMISSION_GRANTED) {
-                        new ImportExportDialog().newInstance().show(getSupportFragmentManager(), "ImportExport");
-                    } else ActivityCompat.requestPermissions(this, PERMISSIONS, 3);
-                } else new ImportExportDialog().newInstance().show(getSupportFragmentManager(), "ImportExport");
+                ImportExportDialog.newInstance().show(getSupportFragmentManager(), "ImportExport");
                 break;
             case R.id.nav_stackmat:
                 if (Build.VERSION.SDK_INT > 22) {
@@ -794,38 +775,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 setStatsLabel();
                 break;
             case R.id.nav_about:
-                new AlertDialog.Builder(context).setIcon(R.mipmap.ic_launcher).setTitle(R.string.app_name).setMessage(String.format(getString(R.string.about_msg), Utils.getVersionName(context)))
-                        .setNeutralButton(R.string.btn_upgrade, new DialogInterface.OnClickListener() { //检测更新
-                            public void onClick(DialogInterface dialog, int which) {
-                                new Thread() {
-                                    public void run() {
-                                        handler.sendEmptyMessage(8);
-                                        String url = "https://raw.githubusercontent.com/MeigenChou/DCTimer/master/release/version.txt";
-                                        if (getString(R.string.language).equals("en")) url = "https://raw.githubusercontent.com/MeigenChou/DCTimer/master/release/version_en.txt";
-                                        String ver = Utils.getContent(url);
-                                        Log.w("DCT", ver);
-                                        if (ver.startsWith("error")) {
-                                            handler.sendEmptyMessage(9);
-                                        } else {
-                                            String[] vers = ver.split("\t");
-                                            try {
-                                                int v = Integer.parseInt(vers[0]);
-                                                if (v > version) {
-                                                    newVersion = vers[1];
-                                                    StringBuilder sb = new StringBuilder(vers[2]);
-                                                    for (int i = 3; i < vers.length; i++) sb.append("\n").append(vers[i]);
-                                                    updateCont = sb.toString();
-                                                    handler.sendEmptyMessage(16);
-                                                }
-                                                else handler.sendEmptyMessage(10);
-                                            } catch (Exception e) {
-
-                                            }
-                                        }
-                                    }
-                                }.start();
-                            }
-                        })
+                new AlertDialog.Builder(context).setIcon(R.mipmap.ic_launcher).setTitle(R.string.app_name)
+                        .setMessage(String.format(getString(R.string.about_msg), Utils.getVersionName(context)))
                         .setNegativeButton(R.string.btn_close, null).show();
                 break;
         }
@@ -836,19 +787,22 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == 1) { //背景图片
-            if (resultCode == RESULT_OK) {
+        if (requestCode == REQUEST_BACKGROUND_IMAGE) { //背景图片
+            if (resultCode == RESULT_OK && data != null) {
                 try {
                     Uri uri = data.getData();
-                    String[] filePathColumn = {MediaStore.Images.Media.DATA};
-                    Cursor cursor = getContentResolver().query(uri, filePathColumn, null, null, null);
-                    cursor.moveToFirst();
-                    int columnIndex = cursor.getColumnIndex(filePathColumn[0]);
-                    picPath = cursor.getString(columnIndex);
-                    //Log.w("pic", picPath);
-                    setPref("picpath", picPath);
-                    if (!useBgcolor)
-                        setBackground();
+                    if (uri != null) {
+                        int takeFlags = data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                        try {
+                            getContentResolver().takePersistableUriPermission(uri, takeFlags & Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        } catch (SecurityException ignored) { }
+                        picUri = uri.toString();
+                        picPath = "";
+                        setPref("picuri", picUri);
+                        setPref("picpath", "");
+                        if (!useBgcolor)
+                            setBackground();
+                    }
                 } catch (Exception e) {
                     e.printStackTrace();
                 } catch (Error e) {
@@ -864,6 +818,31 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             }
         } else if (requestCode == 3) {    //显示详情
             statDetail = null;
+        } else if (requestCode == REQUEST_IMPORT_DATABASE && resultCode == RESULT_OK && data != null) {
+            Uri uri = data.getData();
+            if (uri != null) {
+                app.closeDb();
+                Utils.importDB(this, uri, handler);
+            }
+        } else if (requestCode == REQUEST_EXPORT_DATABASE && resultCode == RESULT_OK && data != null) {
+            Uri uri = data.getData();
+            if (uri != null) {
+                Utils.exportDB(this, uri, handler);
+            }
+        } else if (requestCode == REQUEST_IMPORT_SCRAMBLE && resultCode == RESULT_OK && data != null) {
+            Uri uri = data.getData();
+            if (uri != null) {
+                try {
+                    importScramble(Utils.readText(this, uri));
+                } catch (IOException e) {
+                    Toast.makeText(context, getString(R.string.file_error), Toast.LENGTH_SHORT).show();
+                }
+            }
+        } else if (requestCode == REQUEST_EXPORT_SCRAMBLE && resultCode == RESULT_OK && data != null) {
+            Uri uri = data.getData();
+            if (uri != null) {
+                Utils.saveScramble(context, progressDialog, handler, currentScramble, uri, pendingScrambleExportCount);
+            }
         }
     }
 
@@ -873,14 +852,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (!areAllPermissionsGranted(grantResults)) {
                 Toast.makeText(context, R.string.permission_deny, Toast.LENGTH_SHORT).show();
-            } else if (requestCode == 2) {  //选择图片
-                selectPic();
-            } else if (requestCode == 3) {  //导入导出数据库
-                new ImportExportDialog().newInstance().show(getSupportFragmentManager(), "ImportExport");
-            } else if (requestCode == 4) {  //导出打乱
-                ExportScrambleDialog.newInstance(btnScramble.getText().toString()).show(getSupportFragmentManager(), "ExportScramble");
-            } else if (requestCode == 5) {  //下载
-                download("DCTimer" + newVersion + ".apk");
             } else if (requestCode == REQUEST_BLE_PERMISSION) {  //蓝牙
                 if (dialog != null && dialog.isShowing()) {
                     startBleScanInternal();
@@ -910,14 +881,11 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
     private String[] getBlePermissions() {
         if (Build.VERSION.SDK_INT >= ANDROID_API_S) {
-            if (getApplicationInfo().targetSdkVersion < ANDROID_API_S) {
-                return new String[] {
-                        PERMISSION_BLUETOOTH_SCAN,
-                        PERMISSION_BLUETOOTH_CONNECT,
-                        Manifest.permission.ACCESS_FINE_LOCATION
-                };
-            }
-            return new String[] { PERMISSION_BLUETOOTH_SCAN, PERMISSION_BLUETOOTH_CONNECT };
+            return new String[] {
+                    PERMISSION_BLUETOOTH_SCAN,
+                    PERMISSION_BLUETOOTH_CONNECT,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+            };
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             return new String[] { Manifest.permission.ACCESS_FINE_LOCATION };
@@ -2276,14 +2244,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 }).show();
                 break;
             case 43:    //背景图片
-                if (Build.VERSION.SDK_INT > 22) {
-                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE)
-                            != PackageManager.PERMISSION_GRANTED) {
-                        //申请WRITE_EXTERNAL_STORAGE权限
-                        ActivityCompat.requestPermissions(MainActivity.this, new String[] {Manifest.permission.READ_EXTERNAL_STORAGE},
-                                2);
-                    } else selectPic();
-                } else selectPic();
+                selectPic();
                 break;
             case 44:    //显示背景图
                 if (useBgcolor) {
@@ -2639,7 +2600,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 case 7: Toast.makeText(context, getString(R.string.save_success), Toast.LENGTH_SHORT).show();	break;
                 case 8: Toast.makeText(context, R.string.conning, Toast.LENGTH_SHORT).show();	break;
                 case 9: Toast.makeText(context, getString(R.string.network_error), Toast.LENGTH_SHORT).show();	break;
-                case 10: Toast.makeText(context, R.string.lastest_version, Toast.LENGTH_LONG).show();	break;
                 case 11:
                     Toast.makeText(context, getString(R.string.import_fail), Toast.LENGTH_SHORT).show();
                     Intent intent = getIntent();
@@ -2671,22 +2631,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 case 15:
                     scrambleView.setVisibility(View.VISIBLE);
                     scrambleView.setImageBitmap(bmScrambleView);
-                    break;
-                case 16:
-                    if (defaultPath == null)
-                        Toast.makeText(context, getString(R.string.sdcard_not_exist), Toast.LENGTH_SHORT).show();
-                    else
-                        new AlertDialog.Builder(context).setTitle(getString(R.string.new_version)+ newVersion).setMessage(updateCont)
-                                .setPositiveButton(R.string.btn_download, new DialogInterface.OnClickListener() {
-                                    public void onClick(DialogInterface dialog, int which) {
-                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                                            //权限已授权 GRANTED:授权 DINIED:拒绝
-                                            if (ContextCompat.checkSelfPermission(context, PERMISSIONS[0]) == PackageManager.PERMISSION_GRANTED) {
-                                                download("DCTimer"+ newVersion +".apk");
-                                            } else ActivityCompat.requestPermissions(MainActivity.this, PERMISSIONS, 5);
-                                        } else download("DCTimer"+ newVersion +".apk");
-                                    }
-                                }).setNegativeButton(R.string.btn_cancel, null).show();
                     break;
                 case 21:
                     tvScramble.setText(getString(R.string.initializing) + " (0%) ...");
@@ -2845,32 +2789,42 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     public void setBackgroundColor() {
         int color = APP.getBackgroundColor();
         frame.setBackgroundColor(color);
-        //tabHost.setBackgroundColor(color);
-        //toolbar.setBackgroundColor(color);
         int gray = Utils.grayScale(color);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {   //6.0
-            if (gray > 200) {
-                getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-            } else {
-                getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+            int visibility = gray > 200 ? View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR : 0;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && gray > 200) {
+                visibility |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
             }
-            //getWindow().setNavigationBarColor(color);
+            getWindow().getDecorView().setSystemUiVisibility(visibility);
+            getWindow().setStatusBarColor(color);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                getWindow().setNavigationBarColor(color);
+            }
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) { //5.0
             if (gray > 200) {
                 getWindow().setStatusBarColor(0x44000000);
             } else {
-                getWindow().setStatusBarColor(0);
+                getWindow().setStatusBarColor(color);
             }
+            getWindow().setNavigationBarColor(color);
         }
     }
 
     public void setBackground() {
         try {
-            Bitmap bm = Utils.getBitmap(dm, picPath);
+            Bitmap bm = Utils.getBitmap(context, dm, picUri, picPath);
             bitmap = Utils.getBackgroundBitmap(dm, bm);
             frame.setBackgroundDrawable(Utils.getBackgroundDrawable(context, dm, bitmap, opacity));
         } catch (Exception e) {
             e.printStackTrace();
+            if (!TextUtils.isEmpty(picUri)) {
+                picUri = "";
+                setPref("picuri", "");
+            }
+            if (!TextUtils.isEmpty(picPath)) {
+                picPath = "";
+                setPref("picpath", "");
+            }
             setBackgroundColor();
             //Toast.makeText(context, "Error: "+e.getMessage(), Toast.LENGTH_SHORT).show();
         } catch (OutOfMemoryError e) {
@@ -3690,62 +3644,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         }
     }
 
-    private void download(final String fileName) {
-        final File f = new File(defaultPath);
-        if (!f.exists()) f.mkdirs();
-        progressDialog.setTitle(getString(R.string.downloading));
-        progressDialog.setMax(100);
-        progressDialog.setProgress(0);
-        progressDialog.show();
-        new Thread() {
-            public void run() {
-                try {
-                    URL url = new URL("https://raw.githubusercontent.com/MeigenChou/DCTimer/master/release/"+fileName);
-                    URLConnection conn = url.openConnection();
-                    conn.connect();
-                    InputStream is = conn.getInputStream();
-                    int filesum = conn.getContentLength();
-                    if (filesum == 0) {
-                        progressDialog.dismiss();
-                        handler.sendEmptyMessage(6);
-                        return;
-                    }
-                    progressDialog.setMax(filesum / 1024);
-                    FileOutputStream fs = new FileOutputStream(defaultPath + fileName);
-                    byte[] buffer = new byte[1024 * 8];
-                    int byteread, bytesum = 0;
-                    while ((byteread = is.read(buffer)) != -1) {
-                        bytesum += byteread;
-                        fs.write(buffer, 0, byteread);
-                        handler.sendEmptyMessage(bytesum / 1024 + 100);
-                    }
-                    fs.close();
-                    Intent intent = new Intent();
-                    intent.setAction(Intent.ACTION_VIEW);
-                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-
-                    }
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                        //Log.w("dct", defaultPath+fileName);
-                        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                        //File f = new File(defaultPath, fileName);
-                        Uri contentUri = FileProvider.getUriForFile(context, context.getPackageName() + ".provider", new File(defaultPath +fileName));
-                        intent.setDataAndType(contentUri, "application/vnd.android.package-archive");
-                    } else {
-                        intent.setAction(android.content.Intent.ACTION_VIEW);
-                        intent.setDataAndType(Uri.parse("file://" + defaultPath +fileName), "application/vnd.android.package-archive");
-                    }
-                    startActivity(intent);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    handler.sendEmptyMessage(9);
-                }
-                progressDialog.dismiss();
-            }
-        }.start();
-    }
-
     //屏幕常亮
     private void acquireWakeLock() {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -3755,33 +3653,21 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     }
 
-    public void setEditText(EditText editText) {
-        this.editText = editText;
+    public void requestDatabaseImport() {
+        openDocumentPicker("*/*", new String[] {"application/octet-stream", "application/x-sqlite3", "application/vnd.sqlite3", "application/*", "*/*"}, REQUEST_IMPORT_DATABASE);
     }
 
-    public void setFilePath(String path, boolean listFiles) {
-        currentPath = path;
-        if (listFiles)
-            editText.setText(currentPath);
-        else editText.setText(currentPath + File.separator);
+    public void requestDatabaseExport() {
+        openCreateDocument("application/octet-stream", "database.db", REQUEST_EXPORT_DATABASE);
     }
 
-    public void importDatabase(String path) {
-        app.closeDb();
-        Utils.importDB(path, handler);
+    public void requestScrambleImport() {
+        openDocumentPicker("text/*", new String[] {"text/plain", "text/*"}, REQUEST_IMPORT_SCRAMBLE);
     }
 
-    public void exportDatabase(final String path) {
-        File file = new File(path);
-        if (file.isDirectory()) Toast.makeText(context, getString(R.string.path_illegal), Toast.LENGTH_SHORT).show();
-        else if (file.exists()) {
-            new AlertDialog.Builder(context).setTitle(R.string.confirm_overwrite)
-                    .setPositiveButton(R.string.btn_ok, new DialogInterface.OnClickListener() {
-                        public void onClick(DialogInterface dialoginterface, int j) {
-                            Utils.exportDB(path, handler);
-                        }
-                    }).setNegativeButton(R.string.btn_cancel, null).show();
-        } else Utils.exportDB(path, handler);
+    public void requestScrambleExport(final int n, final String fileName) {
+        pendingScrambleExportCount = n;
+        openCreateDocument("text/plain", ensureFileName(fileName, getString(R.string.default_filename), ".txt"), REQUEST_EXPORT_SCRAMBLE);
     }
 
     public void importScramble(String scramble) {
@@ -3791,26 +3677,38 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         if (scrambleList.size() > 0) newScramble();
     }
 
-    public void exportScramble(final int n, final String path, final String fileName) {
-        if (!path.equals(savePath)) {
-            savePath = path;
-            setPref("scrpath", path);
+    private void openDocumentPicker(String primaryType, String[] mimeTypes, int requestCode) {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType(primaryType);
+        if (mimeTypes != null && mimeTypes.length > 0) {
+            intent.putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes);
         }
-        File file = new File(path + fileName);
-        if (file.isDirectory()) Toast.makeText(context, getString(R.string.path_illegal), Toast.LENGTH_SHORT).show();
-        else if (file.exists()) {
-            new AlertDialog.Builder(context).setTitle(R.string.confirm_overwrite)
-                    .setPositiveButton(R.string.btn_ok, new DialogInterface.OnClickListener() {
-                        public void onClick(DialogInterface dialoginterface, int j) {
-                            Utils.saveScramble(context, progressDialog, handler, currentScramble, path + fileName, n);
-                        }
-                    }).setNegativeButton(R.string.btn_cancel, null).show();
-        } else Utils.saveScramble(context, progressDialog, handler, currentScramble, path + fileName, n);
+        startActivityForResult(intent, requestCode);
+    }
+
+    private void openCreateDocument(String mimeType, String fileName, int requestCode) {
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType(mimeType);
+        intent.putExtra(Intent.EXTRA_TITLE, fileName);
+        startActivityForResult(intent, requestCode);
+    }
+
+    private String ensureFileName(String fileName, String defaultFileName, String extension) {
+        String result = TextUtils.isEmpty(fileName) ? defaultFileName : fileName.trim();
+        if (TextUtils.isEmpty(result)) result = defaultFileName;
+        if (!TextUtils.isEmpty(extension) && !result.endsWith(extension)) {
+            result = result + extension;
+        }
+        return result;
     }
 
     private void selectPic() {
-        Intent i = new Intent(Intent.ACTION_PICK, android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        i.addCategory(Intent.CATEGORY_OPENABLE);
         i.setType("image/*");
-        startActivityForResult(i, 1);
+        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        startActivityForResult(i, REQUEST_BACKGROUND_IMAGE);
     }
 }

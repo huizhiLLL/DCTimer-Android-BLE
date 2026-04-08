@@ -36,7 +36,6 @@ public class APP extends Application {
     public static int penaltyTime;
     public static int scrambleState;
     public static float dpi, fontScale;
-    public static String currentPath;
     public static String defaultPath;// = Environment.getExternalStorageDirectory().getPath()+"/DCTimer/";
     public static String dataPath;
     public static String[][] itemStr = new String[17][];
@@ -78,8 +77,8 @@ public class APP extends Application {
     public static boolean screenOn;
     public static boolean selectSession;
     public static String picPath;
+    public static String picUri;
     public static int freezeTime;
-    public static String savePath;
     public static int[] sesionType = new int[15];
     public static String[] sessionName = new String[15];
     public static int egtype;
@@ -204,7 +203,8 @@ public class APP extends Application {
         colors[4] = sp.getInt("cl4", 0xff009900);	//最快平均颜色
         colors[5] = sp.getInt("cl5", 0xffffffff);   //背景颜色（深色）
         colors[6] = sp.getInt("cl6", 0xff000000);   //文字颜色（深色）
-        picPath = sp.getString("picpath", "");	//背景图片路径
+        picPath = sp.getString("picpath", "");	//背景图片路径（旧路径兼容）
+        picUri = sp.getString("picuri", "");   //背景图片 Uri
         opacity = sp.getInt("opac", 35);	//背景不透明度
         if (opacity < 20) opacity = 20;
         useBgcolor = sp.getBoolean("bgcolor", true);	//使用背景颜色
@@ -217,7 +217,6 @@ public class APP extends Application {
         vibrateType = sp.getInt("vibra", 0);	// 震动反馈
         vibrateTime = sp.getInt("vibtime", 2);	// 震动时长
         screenOri = sp.getInt("screenori", 0);	// 屏幕方向
-        savePath = sp.getString("scrpath", defaultPath);
         samplingRate = sp.getInt("srate", 44100);
         dataFormat = sp.getInt("dform", AudioFormat.ENCODING_PCM_8BIT);
     }
@@ -233,6 +232,7 @@ public class APP extends Application {
         solve333 = 0; solveSq1 = 0; solve222 = 0; solvePyr = 0;
         megaColorScheme = 1; timerFont = 3;
         timerSize = 60; useBgcolor = true; opacity = 35;
+        picPath = ""; picUri = "";
         fullScreen = false; screenOn = false; vibrateType = 0;
         vibrateTime = 2; screenOri = 0;
         colors[0] = 0xffffffff;	colors[1] = 0xff000000;	colors[2] = 0xffff00ff;

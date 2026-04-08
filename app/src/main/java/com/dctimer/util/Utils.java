@@ -25,6 +25,7 @@ import android.graphics.*;
 import android.graphics.Bitmap.Config;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.net.Uri;
 import android.os.Handler;
 import android.text.TextUtils;
 import android.util.DisplayMetrics;
@@ -33,6 +34,8 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.Toast;
+
+import java.nio.charset.StandardCharsets;
 
 public class Utils {
     static String egOllAll = "PHUTLSA";
@@ -157,6 +160,7 @@ public class Utils {
         BitmapFactory.Options opts = new BitmapFactory.Options();
         opts.inJustDecodeBounds = true;
         BitmapFactory.decodeFile(path, opts);
+        if (opts.outWidth <= 0 || opts.outHeight <= 0) return null;
         int width = dm.widthPixels;
         int height = dm.heightPixels;
         Log.w("dct", "wid"+width+","+height);
@@ -170,6 +174,41 @@ public class Utils {
             opts.inSampleSize = (int) scale;
         } else opts.inSampleSize = 1;
         return BitmapFactory.decodeFile(path, opts);
+    }
+
+    public static Bitmap getBitmap(Context context, DisplayMetrics dm, String uriText, String path) throws IOException {
+        if (!TextUtils.isEmpty(uriText)) {
+            Bitmap bitmap = getBitmap(context, dm, Uri.parse(uriText));
+            if (bitmap != null) return bitmap;
+        }
+        if (!TextUtils.isEmpty(path)) {
+            Bitmap bitmap = getBitmap(dm, path);
+            if (bitmap != null) return bitmap;
+        }
+        throw new FileNotFoundException("background image unavailable");
+    }
+
+    public static Bitmap getBitmap(Context context, DisplayMetrics dm, Uri uri) throws IOException {
+        BitmapFactory.Options opts = new BitmapFactory.Options();
+        opts.inJustDecodeBounds = true;
+        try (InputStream in = context.getContentResolver().openInputStream(uri)) {
+            if (in == null) throw new FileNotFoundException(uri.toString());
+            BitmapFactory.decodeStream(in, null, opts);
+        }
+        if (opts.outWidth <= 0 || opts.outHeight <= 0) throw new IOException("invalid image");
+        int width = dm.widthPixels;
+        int height = dm.heightPixels;
+        float scaleWidth = (float) opts.outWidth / width;
+        float scaleHeight = (float) opts.outHeight / height;
+        float scale = Math.min(scaleWidth, scaleHeight);
+        opts.inJustDecodeBounds = false;
+        opts.inSampleSize = scale > 1 ? (int) scale : 1;
+        try (InputStream in = context.getContentResolver().openInputStream(uri)) {
+            if (in == null) throw new FileNotFoundException(uri.toString());
+            Bitmap bitmap = BitmapFactory.decodeStream(in, null, opts);
+            if (bitmap == null) throw new IOException("decode bitmap failed");
+            return bitmap;
+        }
     }
 
     public static Bitmap getBackgroundBitmap(DisplayMetrics dm, Bitmap bitmap) {
@@ -360,6 +399,29 @@ public class Utils {
         } else Toast.makeText(context, context.getString(R.string.path_not_exist), Toast.LENGTH_SHORT).show();
     }
 
+    public static void saveScramble(Context context, final ProgressDialog progress, final Handler handler, final Scrambler scramble, final Uri uri, final int num) {
+        progress.setTitle(context.getString(R.string.action_export_scramble));
+        progress.setMax(num);
+        progress.show();
+        new Thread() {
+            public void run() {
+                try (OutputStream out = context.getContentResolver().openOutputStream(uri, "wt");
+                     BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8))) {
+                    if (out == null) throw new FileNotFoundException(uri.toString());
+                    for (int i = 0; i < num; i++) {
+                        handler.sendEmptyMessage(100 + i);
+                        scramble.generateScramble(APP.scrambleIdx, false);
+                        writer.write((i + 1) + ". " + scramble.getScramble() + "\r\n");
+                    }
+                    handler.sendEmptyMessage(7);
+                } catch (IOException e) {
+                    handler.sendEmptyMessage(5);
+                }
+                progress.dismiss();
+            }
+        }.start();
+    }
+
     public static void saveStat(Context context, String path, String fileName, String stat) {
         File fPath = new File(path);
         if (fPath.exists() || fPath.mkdirs()) {
@@ -374,6 +436,16 @@ public class Utils {
             }
         }
         else Toast.makeText(context, context.getString(R.string.path_not_exist), Toast.LENGTH_SHORT).show();
+    }
+
+    public static void saveStat(Context context, Uri uri, String stat) {
+        try (OutputStream out = context.getContentResolver().openOutputStream(uri, "wt")) {
+            if (out == null) throw new FileNotFoundException(uri.toString());
+            out.write(stat.getBytes(StandardCharsets.UTF_8));
+            Toast.makeText(context, context.getString(R.string.save_success), Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Toast.makeText(context, context.getString(R.string.save_fail), Toast.LENGTH_SHORT).show();
+        }
     }
 
     public static void exportDB(final String path, final Handler handler) {
@@ -397,6 +469,26 @@ public class Utils {
                     handler.sendEmptyMessage(5);
                 }
                 //pd.dismiss();
+            }
+        }.start();
+    }
+
+    public static void exportDB(final Context context, final Uri uri, final Handler handler) {
+        new Thread() {
+            public void run() {
+                try (InputStream is = new FileInputStream(APP.dataPath + "spdcube.db");
+                     OutputStream os = context.getContentResolver().openOutputStream(uri, "wt")) {
+                    if (os == null) throw new FileNotFoundException(uri.toString());
+                    byte[] buf = new byte[1024 * 8];
+                    int bytesRead;
+                    while ((bytesRead = is.read(buf)) != -1) {
+                        os.write(buf, 0, bytesRead);
+                    }
+                    handler.sendEmptyMessage(7);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    handler.sendEmptyMessage(5);
+                }
             }
         }.start();
     }
@@ -425,6 +517,49 @@ public class Utils {
                 }
             }
         }).start();
+    }
+
+    public static void importDB(final Context context, final Uri uri, final Handler handler) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try (InputStream is = context.getContentResolver().openInputStream(uri)) {
+                    if (is == null) throw new FileNotFoundException(uri.toString());
+                    byte[] buf = new byte[1024 * 8];
+                    int bytesRead = is.read(buf, 0, 16);
+                    if (bytesRead < 16) handler.sendEmptyMessage(11);
+                    else if (checkHeader(buf)) {
+                        try (OutputStream os = new FileOutputStream(APP.dataPath + "spdcube.db")) {
+                            os.write(buf, 0, 16);
+                            while ((bytesRead = is.read(buf)) != -1) {
+                                os.write(buf, 0, bytesRead);
+                            }
+                        }
+                        handler.sendEmptyMessage(12);
+                    } else handler.sendEmptyMessage(11);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    handler.sendEmptyMessage(11);
+                }
+            }
+        }).start();
+    }
+
+    public static String readText(Context context, Uri uri) throws IOException {
+        StringBuilder builder = new StringBuilder();
+        try (InputStream in = context.getContentResolver().openInputStream(uri)) {
+            if (in == null) throw new FileNotFoundException(uri.toString());
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+                String line;
+                boolean firstLine = true;
+                while ((line = reader.readLine()) != null) {
+                    if (!firstLine) builder.append('\n');
+                    builder.append(line);
+                    firstLine = false;
+                }
+            }
+        }
+        return builder.toString();
     }
 
     private static boolean checkHeader(byte[] buf) {
