@@ -1,7 +1,6 @@
 package com.dctimer.dialog;
 
 import android.app.Dialog;
-import android.graphics.Bitmap;
 import android.os.Bundle;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -11,18 +10,17 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import com.dctimer.R;
 import com.dctimer.activity.MainActivity;
 import com.dctimer.model.SmartCube;
-import com.dctimer.util.Utils;
+import com.dctimer.view.SmartCubeImageView;
 
 public class CubeStateDialog extends DialogFragment {
     private SmartCube cube;
     private TextView tvBattery;
     private ImageView ivBattery;
-    private ImageView imageView;
+    private SmartCubeImageView imageView;
 
     public static CubeStateDialog newInstance(SmartCube cube) {
         CubeStateDialog dialog = new CubeStateDialog();
@@ -35,11 +33,12 @@ public class CubeStateDialog extends DialogFragment {
     @NonNull
     @Override
     public Dialog onCreateDialog(@Nullable Bundle savedInstanceState) {
-        cube = (SmartCube) getArguments().getSerializable("cube");
+        cube = getArguments() == null ? null : (SmartCube) getArguments().getSerializable("cube");
         AlertDialog.Builder buidler = new AlertDialog.Builder(getActivity());
         View view = getActivity().getLayoutInflater().inflate(R.layout.dialog_cube_state, null);
         tvBattery = view.findViewById(R.id.tv_battery);
-        int batteryValue = cube.getBatteryValue();
+        SmartCube currentCube = resolveCube();
+        int batteryValue = currentCube == null ? 0 : currentCube.getBatteryValue();
         tvBattery.setText(batteryValue + "%");
         ivBattery = view.findViewById(R.id.iv_battery);
         setBatteryImage(batteryValue);
@@ -49,8 +48,8 @@ public class CubeStateDialog extends DialogFragment {
         btRefresh.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                //BluetoothGatt mBluetoothGatt = connectedDevices.get(cube.getAddress());
-                int batteryValue = cube.getBatteryValue();
+                SmartCube currentCube = resolveCube();
+                int batteryValue = currentCube == null ? 0 : currentCube.getBatteryValue();
                 tvBattery.setText(batteryValue + "%");
                 setBatteryImage(batteryValue);
                 setImage();
@@ -62,27 +61,27 @@ public class CubeStateDialog extends DialogFragment {
             public void onClick(View view) {
                 if (getActivity() instanceof MainActivity) {
                     ((MainActivity) getActivity()).resetSmartCubeToSolved();
-                } else {
+                } else if (cube != null) {
                     cube.markSolved();
                 }
                 setImage();
             }
         });
-        Button btScrambled = view.findViewById(R.id.bt_scrambled);
-        btScrambled.setOnClickListener(new View.OnClickListener() {
+        Button btDisconnect = view.findViewById(R.id.bt_scrambled);
+        btDisconnect.setOnClickListener(new View.OnClickListener() {
             @Override
-            public void onClick(View view) {    //标记打乱
-                if (cube.getCubeState().equals("UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB")) {
-                    Toast.makeText(getActivity(), "魔方已还原", Toast.LENGTH_SHORT).show();
-                } else {
-                    cube.markScrambled();
-                    if (getActivity() instanceof MainActivity) {
-                        ((MainActivity) getActivity()).markScrambled();
-                    }
+            public void onClick(View view) {
+                if (getActivity() instanceof MainActivity) {
+                    ((MainActivity) getActivity()).disconnectSmartCube();
                 }
+                dismissAllowingStateLoss();
             }
         });
-        buidler.setTitle("SmartCube").setView(view).setNegativeButton(R.string.btn_close, null);
+        String title = currentCube == null ? null : currentCube.getDeviceName();
+        if (title == null || title.trim().isEmpty()) {
+            title = "SmartCube";
+        }
+        buidler.setTitle(title).setView(view).setNegativeButton(R.string.btn_close, null);
         return buidler.create();
     }
 
@@ -101,8 +100,41 @@ public class CubeStateDialog extends DialogFragment {
     }
 
     private void setImage() {
-        Bitmap bitmap = Utils.drawCubeState3D(cube.getCubeState());
-        if (bitmap != null)
-            imageView.setImageBitmap(bitmap);
+        SmartCube currentCube = resolveCube();
+        if (currentCube != null) {
+            imageView.showCubeState(currentCube.getCubeState());
+        }
+    }
+
+    public void refreshState() {
+        SmartCube currentCube = resolveCube();
+        int batteryValue = currentCube == null ? 0 : currentCube.getBatteryValue();
+        if (tvBattery != null) {
+            tvBattery.setText(batteryValue + "%");
+        }
+        if (ivBattery != null) {
+            setBatteryImage(batteryValue);
+        }
+        setImage();
+    }
+
+    public void playMove(String fromState, String toState, int move) {
+        if (cube != null) {
+            cube.setCubeState(toState);
+        }
+        if (imageView != null) {
+            imageView.animateMove(fromState, toState, move);
+        }
+    }
+
+    private SmartCube resolveCube() {
+        if (getActivity() instanceof MainActivity) {
+            SmartCube activeCube = ((MainActivity) getActivity()).getSmartCubeForUi();
+            if (activeCube != null) {
+                cube = activeCube;
+                return activeCube;
+            }
+        }
+        return cube;
     }
 }

@@ -124,6 +124,7 @@
     <string name="btn_delete">不保存</string>
     <string name="btn_open">打開</string>
     <string name="btn_scan">掃描</string>
+    <string name="btn_cube_reset">重置魔方</string>
     <string name="btn_refresh">刷新</string>
     <string name="btn_mark_solve">標記爲還原狀態</string>
     <string name="btn_mark_scramble">標記爲正確轉亂</string>

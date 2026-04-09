@@ -68,7 +68,9 @@ public class GanCubeProtocol implements SmartCubeProtocol {
     private boolean writePending;
     private boolean initialStateShown;
     private int prevMoveCnt = -1;
+    private int currentMoveCnt = -1;
     private long lastEmittedDeviceTs = -1L;
+    private long prevMoveLocTime = -1L;
     private int batteryLevel;
 
     private enum Variant {
@@ -165,7 +167,9 @@ public class GanCubeProtocol implements SmartCubeProtocol {
         writePending = false;
         initialStateShown = false;
         prevMoveCnt = -1;
+        currentMoveCnt = -1;
         lastEmittedDeviceTs = -1L;
+        prevMoveLocTime = -1L;
         batteryLevel = 0;
     }
 
@@ -423,6 +427,7 @@ public class GanCubeProtocol implements SmartCubeProtocol {
     }
 
     private void parseV3Data(byte[] value) throws GeneralSecurityException {
+        long locTime = System.currentTimeMillis();
         String bits = toBitString(cipher.decode(value));
         int magic = parseBits(bits, 0, 8);
         int mode = parseBits(bits, 8, 8);
@@ -431,9 +436,9 @@ public class GanCubeProtocol implements SmartCubeProtocol {
             return;
         }
         if (mode == 1) {
-            handleV3Move(bits);
+            handleV3Move(bits, locTime);
         } else if (mode == 2) {
-            handleV3Facelets(bits);
+            handleV3Facelets(bits, locTime);
         } else if (mode == 6) {
             handleV3History(bits, len);
         } else if (mode == 16) {
@@ -443,13 +448,14 @@ public class GanCubeProtocol implements SmartCubeProtocol {
     }
 
     private void parseV4Data(byte[] value) throws GeneralSecurityException {
+        long locTime = System.currentTimeMillis();
         String bits = toBitString(cipher.decode(value));
         int mode = parseBits(bits, 0, 8);
         int len = parseBits(bits, 8, 8);
         if (mode == 0x01) {
-            handleV4Move(bits);
+            handleV4Move(bits, locTime);
         } else if (mode == 0xED) {
-            handleV4Facelets(bits);
+            handleV4Facelets(bits, locTime);
         } else if (mode == 0xD1) {
             handleV4History(bits, len);
         } else if (mode == 0xEF) {
@@ -458,9 +464,11 @@ public class GanCubeProtocol implements SmartCubeProtocol {
         }
     }
 
-    private void handleV3Move(String bits) {
+    private void handleV3Move(String bits, long locTime) {
         int moveCnt = parseBits(bits, 64, 8) << 8 | parseBits(bits, 56, 8);
         moveCnt &= 0xff;
+        currentMoveCnt = moveCnt;
+        prevMoveLocTime = locTime;
         if (moveCnt == prevMoveCnt || prevMoveCnt == -1) {
             return;
         }
@@ -477,9 +485,11 @@ public class GanCubeProtocol implements SmartCubeProtocol {
         evictMoveBuffer(true);
     }
 
-    private void handleV4Move(String bits) {
+    private void handleV4Move(String bits, long locTime) {
         int moveCnt = parseBits(bits, 56, 8) << 8 | parseBits(bits, 48, 8);
         moveCnt &= 0xff;
+        currentMoveCnt = moveCnt;
+        prevMoveLocTime = locTime;
         if (moveCnt == prevMoveCnt || prevMoveCnt == -1) {
             return;
         }
@@ -496,11 +506,20 @@ public class GanCubeProtocol implements SmartCubeProtocol {
         evictMoveBuffer(true);
     }
 
-    private void handleV3Facelets(String bits) {
+    private void handleV3Facelets(String bits, long locTime) {
         int moveCnt = (parseBits(bits, 32, 8) << 8 | parseBits(bits, 24, 8)) & 0xff;
+        currentMoveCnt = moveCnt;
         if (prevMoveCnt != -1) {
-            if (((moveCnt - prevMoveCnt) & 0xff) > 0) {
-                requestMoveHistory(moveCnt, (moveCnt - prevMoveCnt) & 0xff);
+            int diff = (moveCnt - prevMoveCnt) & 0xff;
+            if (prevMoveLocTime > 0 && locTime - prevMoveLocTime > 500 && diff > 0 && moveCnt != 0) {
+                int startMoveCnt = moveBuffer.isEmpty() ? ((moveCnt + 1) & 0xff) : moveBuffer.peekFirst().moveCnt;
+                Log.w(TAG, "GAN v3 facelet ahead, request history prev=" + prevMoveCnt
+                        + " current=" + moveCnt
+                        + " head=" + startMoveCnt
+                        + " diff=" + diff
+                        + " wait=" + (locTime - prevMoveLocTime)
+                        + "ms");
+                requestMoveHistory(startMoveCnt, diff + 1);
             }
             return;
         }
@@ -518,11 +537,20 @@ public class GanCubeProtocol implements SmartCubeProtocol {
         Log.w(TAG, "GAN v3 初始状态: " + facelet);
     }
 
-    private void handleV4Facelets(String bits) {
+    private void handleV4Facelets(String bits, long locTime) {
         int moveCnt = (parseBits(bits, 24, 8) << 8 | parseBits(bits, 16, 8)) & 0xff;
+        currentMoveCnt = moveCnt;
         if (prevMoveCnt != -1) {
-            if (((moveCnt - prevMoveCnt) & 0xff) > 0) {
-                requestMoveHistory(moveCnt, (moveCnt - prevMoveCnt) & 0xff);
+            int diff = (moveCnt - prevMoveCnt) & 0xff;
+            if (prevMoveLocTime > 0 && locTime - prevMoveLocTime > 500 && diff > 0 && moveCnt != 0) {
+                int startMoveCnt = moveBuffer.isEmpty() ? ((moveCnt + 1) & 0xff) : moveBuffer.peekFirst().moveCnt;
+                Log.w(TAG, "GAN v4 facelet ahead, request history prev=" + prevMoveCnt
+                        + " current=" + moveCnt
+                        + " head=" + startMoveCnt
+                        + " diff=" + diff
+                        + " wait=" + (locTime - prevMoveLocTime)
+                        + "ms");
+                requestMoveHistory(startMoveCnt, diff + 1);
             }
             return;
         }
@@ -543,6 +571,7 @@ public class GanCubeProtocol implements SmartCubeProtocol {
     private void handleV3History(String bits, int len) {
         int startMoveCnt = parseBits(bits, 24, 8);
         int numberOfMoves = (len - 1) * 2;
+        Log.w(TAG, "GAN v3 history event start=" + startMoveCnt + " count=" + numberOfMoves);
         injectHistoryMoves(bits, 32, startMoveCnt, numberOfMoves, false);
         evictMoveBuffer(false);
     }
@@ -550,6 +579,7 @@ public class GanCubeProtocol implements SmartCubeProtocol {
     private void handleV4History(String bits, int len) {
         int startMoveCnt = parseBits(bits, 16, 8);
         int numberOfMoves = (len - 1) * 2;
+        Log.w(TAG, "GAN v4 history event start=" + startMoveCnt + " count=" + numberOfMoves);
         injectHistoryMoves(bits, 24, startMoveCnt, numberOfMoves, true);
         evictMoveBuffer(false);
     }
@@ -561,7 +591,7 @@ public class GanCubeProtocol implements SmartCubeProtocol {
             if (axis >= 6) {
                 continue;
             }
-            int move = convertQuarterMove("DUBFLR".indexOf("DUBFLR".charAt(axis)), pow);
+            int move = convertHistoryMove(axis, pow);
             int moveCnt = (startMoveCnt - i) & 0xff;
             injectLostMove(new MoveEvent(moveCnt, move, null));
         }
@@ -569,7 +599,7 @@ public class GanCubeProtocol implements SmartCubeProtocol {
 
     private void injectLostMove(MoveEvent move) {
         if (moveBuffer.isEmpty()) {
-            if (isMoveNumberInRange(prevMoveCnt, move.moveCnt, move.moveCnt, false, true)) {
+            if (currentMoveCnt < 0 || isMoveNumberInRange(prevMoveCnt, currentMoveCnt, move.moveCnt, false, true)) {
                 moveBuffer.offerFirst(move);
             }
             return;
@@ -594,6 +624,11 @@ public class GanCubeProtocol implements SmartCubeProtocol {
             MoveEvent head = moveBuffer.peekFirst();
             int diff = (head.moveCnt - prevMoveCnt) & 0xff;
             if (diff > 1) {
+                Log.w(TAG, "GAN gap detected prev=" + prevMoveCnt
+                        + " head=" + head.moveCnt
+                        + " diff=" + diff
+                        + " buffer=" + moveBuffer.size()
+                        + " requestHistory=" + requestHistory);
                 if (requestHistory) {
                     requestMoveHistory(head.moveCnt, diff);
                 }
@@ -613,6 +648,9 @@ public class GanCubeProtocol implements SmartCubeProtocol {
 
     private void requestMoveHistory(int startMoveCnt, int numberOfMoves) {
         if (variant != Variant.V3 && variant != Variant.V4) {
+            return;
+        }
+        if (numberOfMoves <= 0) {
             return;
         }
         if (startMoveCnt % 2 == 0) {
@@ -738,6 +776,15 @@ public class GanCubeProtocol implements SmartCubeProtocol {
 
     private int convertQuarterMove(int axis, int pow) {
         return axis * 3 + (pow == 0 ? 0 : 2);
+    }
+
+    private int convertHistoryMove(int axis, int pow) {
+        char face = "DUBFLR".charAt(axis);
+        int mappedAxis = "URFDLB".indexOf(face);
+        if (mappedAxis < 0) {
+            mappedAxis = 0;
+        }
+        return convertQuarterMove(mappedAxis, pow);
     }
 
     private String toBitString(byte[] bytes) {

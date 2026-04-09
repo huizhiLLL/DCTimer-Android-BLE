@@ -9,11 +9,14 @@ import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.le.BluetoothLeScanner;
+import android.bluetooth.le.ScanRecord;
 import android.bluetooth.le.ScanCallback;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
 import android.os.Build;
+import android.text.TextUtils;
 import android.util.Log;
+import android.util.SparseArray;
 import android.widget.Toast;
 
 import com.dctimer.R;
@@ -206,6 +209,12 @@ public class BluetoothTools {
         return smartCube;
     }
 
+    public void notifyLocalCubeReset(String cubeState) {
+        if (smartCubeProtocol != null) {
+            smartCubeProtocol.onLocalCubeReset(cubeState);
+        }
+    }
+
     public void setCubeStateChangedCallback(SmartCube.StateChangedCallback callback) {
         this.stateChangedCallback = callback;
     }
@@ -227,7 +236,7 @@ public class BluetoothTools {
         @Override
         public void onScanResult(int callbackType, ScanResult result) {
             if (result != null) {
-                onDeviceFound(result.getDevice());
+                onDeviceFound(result.getDevice(), result.getScanRecord());
             }
         }
 
@@ -236,7 +245,7 @@ public class BluetoothTools {
             if (results == null) return;
             for (ScanResult result : results) {
                 if (result != null) {
-                    onDeviceFound(result.getDevice());
+                    onDeviceFound(result.getDevice(), result.getScanRecord());
                 }
             }
         }
@@ -255,14 +264,33 @@ public class BluetoothTools {
     };
 
     private void onDeviceFound(BluetoothDevice bluetoothDevice) {
+        onDeviceFound(bluetoothDevice, null);
+    }
+
+    @TargetApi(21)
+    private void onDeviceFound(BluetoothDevice bluetoothDevice, ScanRecord scanRecord) {
         if (bluetoothDevice == null) return;
         try {
             final String deviceName = bluetoothDevice.getName();
             final String deviceAddress = bluetoothDevice.getAddress();
             if (deviceName == null || deviceAddress == null) return;
+            String protocolAddress = extractProtocolAddress(deviceName, deviceAddress, scanRecord);
+            BLEDevice existingDevice = findDeviceByAddress(deviceAddress);
+            if (existingDevice != null) {
+                if (!TextUtils.isEmpty(protocolAddress) && !protocolAddress.equalsIgnoreCase(existingDevice.getProtocolAddress())) {
+                    existingDevice.setProtocolAddress(protocolAddress);
+                    Log.w("dct", "更新设备协议地址 " + deviceName + " -> " + protocolAddress);
+                }
+                return;
+            }
             Log.w("dct", "发现设备 " + deviceName);
-            if (addressMap.contains(deviceAddress)) return;
             BLEDevice device = new BLEDevice(deviceName, deviceAddress);
+            if (!TextUtils.isEmpty(protocolAddress)) {
+                device.setProtocolAddress(protocolAddress);
+                if (!protocolAddress.equalsIgnoreCase(deviceAddress)) {
+                    Log.w("dct", "设备 " + deviceName + " 使用广播 MAC " + protocolAddress + " 作为协议地址");
+                }
+            }
             addressMap.add(deviceAddress);
             cubeList.add(device);
             context.runOnUiThread(new Runnable() {
@@ -274,6 +302,47 @@ public class BluetoothTools {
         } catch (SecurityException e) {
             Log.e("dct", "读取扫描设备信息失败", e);
         }
+    }
+
+    private BLEDevice findDeviceByAddress(String deviceAddress) {
+        if (deviceAddress == null || cubeList == null) return null;
+        for (BLEDevice device : cubeList) {
+            if (deviceAddress.equalsIgnoreCase(device.getAddress())) {
+                return device;
+            }
+        }
+        return null;
+    }
+
+    @TargetApi(21)
+    private String extractProtocolAddress(String deviceName, String deviceAddress, ScanRecord scanRecord) {
+        if (!isQiyiCubeName(deviceName) || scanRecord == null) {
+            return deviceAddress;
+        }
+        SparseArray<byte[]> manufacturerData = scanRecord.getManufacturerSpecificData();
+        if (manufacturerData == null || manufacturerData.size() == 0) {
+            return deviceAddress;
+        }
+        byte[] macBytes = manufacturerData.get(0x0504);
+        if (macBytes == null || macBytes.length < 6) {
+            return deviceAddress;
+        }
+        StringBuilder builder = new StringBuilder(17);
+        for (int i = 5; i >= 0; i--) {
+            if (builder.length() > 0) builder.append(':');
+            builder.append(String.format(Locale.US, "%02X", macBytes[i] & 0xff));
+        }
+        return builder.toString();
+    }
+
+    private String resolveProtocolAddress(BluetoothGatt gatt) {
+        if (connectedIndex >= 0 && connectedIndex < cubeList.size()) {
+            String protocolAddress = cubeList.get(connectedIndex).getProtocolAddress();
+            if (!TextUtils.isEmpty(protocolAddress)) {
+                return protocolAddress;
+            }
+        }
+        return gatt != null && gatt.getDevice() != null ? gatt.getDevice().getAddress() : null;
     }
 
     public void startScan() {
@@ -336,7 +405,8 @@ public class BluetoothTools {
         connectedIndex = pos;
         BLEDevice bleDevice = cubeList.get(pos);
         bleDeviceType = guessDeviceType(bleDevice.getName());
-        Log.w("dct", "连接设备 " + bleDevice.getName() + " 使用类型 " + bleDeviceType);
+        Log.w("dct", "连接设备 " + bleDevice.getName() + " 使用类型 " + bleDeviceType
+                + " 协议地址 " + bleDevice.getProtocolAddress());
         String address = bleDevice.getAddress();
         int connect = bleDevice.getConnected();
         if (connect == 0) {
@@ -397,18 +467,21 @@ public class BluetoothTools {
             if (bleDeviceType == BLEDevice.TYPE_GANI_CUBE) {
                 smartCube = new SmartCube();
                 smartCube.setType(bleDeviceType);
+                smartCube.setDeviceName(gatt.getDevice().getName());
                 smartCube.setStateChangedCallback(stateChangedCallback);
                 smartCubeProtocol = createSmartCubeProtocol(bleDeviceType, smartCube);
                 service = GanCubeProtocol.findPrimaryService(gatt);
             } else if (bleDeviceType == BLEDevice.TYPE_MOYU32_CUBE) {
                 smartCube = new SmartCube();
                 smartCube.setType(bleDeviceType);
+                smartCube.setDeviceName(gatt.getDevice().getName());
                 smartCube.setStateChangedCallback(stateChangedCallback);
                 smartCubeProtocol = createSmartCubeProtocol(bleDeviceType, smartCube);
                 service = gatt.getService(Moyu32CubeProtocol.SERVICE_UUID);
             } else if (bleDeviceType == BLEDevice.TYPE_QIYI_CUBE) {
                 smartCube = new SmartCube();
                 smartCube.setType(bleDeviceType);
+                smartCube.setDeviceName(gatt.getDevice().getName());
                 smartCube.setStateChangedCallback(stateChangedCallback);
                 smartCubeProtocol = createSmartCubeProtocol(bleDeviceType, smartCube);
                 service = gatt.getService(QiyiCubeProtocol.SERVICE_UUID);
@@ -440,7 +513,7 @@ public class BluetoothTools {
             } else if (bleDeviceType == BLEDevice.TYPE_MOYU32_CUBE
                     || bleDeviceType == BLEDevice.TYPE_QIYI_CUBE
                     || bleDeviceType == BLEDevice.TYPE_GANI_CUBE) {
-                if (smartCubeProtocol == null || !smartCubeProtocol.start(gatt, service, gatt.getDevice().getName(), gatt.getDevice().getAddress())) {
+                if (smartCubeProtocol == null || !smartCubeProtocol.start(gatt, service, gatt.getDevice().getName(), resolveProtocolAddress(gatt))) {
                     context.runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
@@ -655,11 +728,11 @@ public class BluetoothTools {
         public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
             UUID uuid = characteristic.getUuid();
             byte[] value = characteristic.getValue();
-            Log.w("dct", "value changed "+uuid.toString()+" value "+Arrays.toString(value));
             if (smartCubeProtocol != null) {
                 smartCubeProtocol.onCharacteristicChanged(characteristic);
                 return;
             }
+            Log.w("dct", "value changed "+uuid.toString()+" value "+Arrays.toString(value));
             if (uuid.equals(CHARACTER_UUID_DATA)) {
                 byte[] valhex = Decrypt.toHexValue(value);
                 //Log.w("dct", "valhex "+Arrays.toString(valhex));
@@ -691,6 +764,14 @@ public class BluetoothTools {
         public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
             if (smartCubeProtocol != null) {
                 smartCubeProtocol.onDescriptorWrite(descriptor, status);
+            }
+        }
+
+        @Override
+        public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
+            Log.w("dct", "onMtuChanged mtu=" + mtu + " status=" + status);
+            if (smartCubeProtocol != null) {
+                smartCubeProtocol.onMtuChanged(mtu, status);
             }
         }
     };

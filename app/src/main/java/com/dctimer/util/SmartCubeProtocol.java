@@ -15,4 +15,10 @@ public interface SmartCubeProtocol {
     void onCharacteristicWrite(BluetoothGattCharacteristic characteristic, int status);
 
     void onCharacteristicChanged(BluetoothGattCharacteristic characteristic);
+
+    default void onMtuChanged(int mtu, int status) {
+    }
+
+    default void onLocalCubeReset(String cubeState) {
+    }
 }

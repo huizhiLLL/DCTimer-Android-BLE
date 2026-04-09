@@ -433,6 +433,21 @@ public class Tools {
         return fromScramble(ret);
     }
 
+    public static String getCorrectionFacelet(String currentFacelets, String targetFacelets) {
+        CubieCube current = new CubieCube();
+        CubieCube target = new CubieCube();
+        if (Util.toCubieCube(currentFacelets, current) != 0 || Util.toCubieCube(targetFacelets, target) != 0) {
+            return null;
+        }
+        CubieCube inverseTarget = new CubieCube(target);
+        inverseTarget.temps = new CubieCube();
+        inverseTarget.invCubieCube();
+        CubieCube correction = new CubieCube();
+        CubieCube.CornMult(inverseTarget, current, correction);
+        CubieCube.EdgeMult(inverseTarget, current, correction);
+        return Util.toFaceCube(correction);
+    }
+
     /**
      * Check whether the cube definition string s represents a solvable cube.
      *

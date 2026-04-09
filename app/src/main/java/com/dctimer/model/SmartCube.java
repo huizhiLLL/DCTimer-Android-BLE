@@ -14,6 +14,7 @@ import cs.min2phase.Util;
 public class SmartCube implements Serializable {
     private int type;
     private int version;
+    private String deviceName;
     private String cubeState;
     private int batteryValue;
     private List<Integer> rawData;
@@ -38,6 +39,14 @@ public class SmartCube implements Serializable {
 
     public void setType(int type) {
         this.type = type;
+    }
+
+    public String getDeviceName() {
+        return deviceName;
+    }
+
+    public void setDeviceName(String deviceName) {
+        this.deviceName = deviceName;
     }
 
     public String getCubeState() {

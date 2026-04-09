@@ -10,12 +10,14 @@ public class BLEDevice {
     public static final int TYPE_QIYI_CUBE = 5;
     private String name;
     private String address;
+    private String protocolAddress;
     private int connected;
     //private int type;
 
     public BLEDevice(String name, String address) {
         this.name = name;
         this.address = address;
+        this.protocolAddress = address;
     }
 
     public String getName() {
@@ -32,6 +34,14 @@ public class BLEDevice {
 
     public void setAddress(String address) {
         this.address = address;
+    }
+
+    public String getProtocolAddress() {
+        return protocolAddress;
+    }
+
+    public void setProtocolAddress(String protocolAddress) {
+        this.protocolAddress = protocolAddress;
     }
 
     public int getConnected() {

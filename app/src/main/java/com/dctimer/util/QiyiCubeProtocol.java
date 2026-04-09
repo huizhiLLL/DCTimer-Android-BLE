@@ -4,6 +4,7 @@ import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
@@ -25,6 +26,7 @@ public class QiyiCubeProtocol implements SmartCubeProtocol {
     private static final String TAG = "QiYiCube";
     public static final UUID SERVICE_UUID = UUID.fromString("0000fff0-0000-1000-8000-00805f9b34fb");
     public static final UUID CUBE_UUID = UUID.fromString("0000fff6-0000-1000-8000-00805f9b34fb");
+    public static final UUID WRITE_UUID = UUID.fromString("0000fff5-0000-1000-8000-00805f9b34fb");
     private static final UUID CCCD_UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
     private static final byte[] AES_KEY = {
             87, (byte) 177, (byte) 249, (byte) 171,
@@ -36,39 +38,80 @@ public class QiyiCubeProtocol implements SmartCubeProtocol {
     private static final float DEVICE_TIME_SCALE = 1.6f;
     private static final int MAX_MOVE_DELTA_MS = 0xffff;
     private static final int FALLBACK_HELLO_DELAY_MS = 1500;
+    private static final int HELLO_RETRY_DELAY_MS = 3000;
+    private static final int WRITE_RETRY_DELAY_MS = 80;
+    private static final int MAX_HELLO_ATTEMPTS = 2;
+    private static final int REQUIRED_MTU = 64;
+    private static final byte[] SYNC_STATE_PREFIX = {
+            0x04, 0x17, (byte) 0x88, (byte) 0x8b, 0x31
+    };
+    private static final byte[] SYNC_STATE_SUFFIX = {
+            0x00, 0x00
+    };
+    private static final String FACELET_ORDER = "LRDUFB";
 
     private final MainActivity context;
     private final SmartCube smartCube;
     private final ArrayDeque<byte[]> requestQueue = new ArrayDeque<>();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final Runnable sendNextRequestRunnable = new Runnable() {
+        @Override
+        public void run() {
+            sendNextRequest();
+        }
+    };
 
     private final Runnable fallbackHelloRunnable = new Runnable() {
         @Override
         public void run() {
             if (helloReceived || fallbackHelloSent || TextUtils.isEmpty(fallbackMac)
-                    || fallbackMac.equalsIgnoreCase(activeMac)) {
+                    || fallbackMac.equalsIgnoreCase(activeMac) || protocolMismatchDetected) {
                 return;
             }
             fallbackHelloSent = true;
             activeMac = fallbackMac;
             Log.w(TAG, "QiYi 使用备用 MAC 发起 hello: " + fallbackMac);
-            enqueueMessage(buildHelloContent(fallbackMac), true);
+            enqueueHello(true, "备用 MAC");
+            mainHandler.postDelayed(helloRetryRunnable, HELLO_RETRY_DELAY_MS);
+        }
+    };
+
+    private final Runnable helloRetryRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (helloReceived || TextUtils.isEmpty(activeMac) || protocolMismatchDetected) {
+                return;
+            }
+            if (helloAttemptCount >= MAX_HELLO_ATTEMPTS) {
+                Log.w(TAG, "QiYi hello 已达到最大重试次数，停止自动重试");
+                return;
+            }
+            Log.w(TAG, "QiYi hello 未收到响应，重试 MAC: " + activeMac);
+            enqueueHello(true, "超时重试");
         }
     };
 
     private BluetoothGatt gatt;
     private BluetoothGattCharacteristic cubeCharacteristic;
+    private BluetoothGattCharacteristic writeCharacteristic;
+    private BluetoothGattCharacteristic fallbackWriteCharacteristic;
     private Cipher encryptCipher;
     private Cipher decryptCipher;
     private boolean notificationsReady;
     private boolean writePending;
+    private boolean writeWithoutResponse;
+    private boolean mtuReady;
     private boolean initialStateShown;
     private boolean helloReceived;
     private boolean fallbackHelloSent;
+    private boolean localResetActive;
+    private boolean protocolMismatchDetected;
     private String deviceName;
     private String activeMac;
     private String fallbackMac;
     private long lastTimestamp = -1L;
+    private int nonProtocolMessageCount;
+    private int helloAttemptCount;
 
     public QiyiCubeProtocol(MainActivity context, SmartCube smartCube) {
         this.context = context;
@@ -95,13 +138,47 @@ public class QiyiCubeProtocol implements SmartCubeProtocol {
             Log.e(TAG, "QiYi 特征不存在");
             return false;
         }
+        fallbackWriteCharacteristic = resolveFallbackWriteCharacteristic(service, cubeCharacteristic);
+        writeCharacteristic = resolveWriteCharacteristic(service, cubeCharacteristic);
+        if (writeCharacteristic == null) {
+            Log.e(TAG, "QiYi 写特征不存在");
+            return false;
+        }
+        logCharacteristicProperties(cubeCharacteristic);
+        Log.w(TAG, "QiYi 默认使用 " + writeCharacteristic.getUuid() + " 作为写通道");
+        if (fallbackWriteCharacteristic != null && !fallbackWriteCharacteristic.getUuid().equals(writeCharacteristic.getUuid())) {
+            Log.w(TAG, "QiYi 检测到备用写特征，但当前不自动切换: " + fallbackWriteCharacteristic.getUuid());
+        }
+        if (requestMtuIfNeeded()) {
+            return true;
+        }
+        setupNotifications();
+        return true;
+    }
+
+    private boolean requestMtuIfNeeded() {
+        mtuReady = Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP;
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP || gatt == null) {
+            return false;
+        }
+        boolean requested = gatt.requestMtu(REQUIRED_MTU);
+        if (requested) {
+            Log.w(TAG, "QiYi 请求 MTU=" + REQUIRED_MTU);
+        } else {
+            Log.w(TAG, "QiYi 请求 MTU 失败，回退默认 MTU");
+            mtuReady = true;
+        }
+        return requested;
+    }
+
+    private void setupNotifications() {
         if (!gatt.setCharacteristicNotification(cubeCharacteristic, true)) {
             Log.e(TAG, "QiYi 无法开启通知");
-            return false;
+            return;
         }
         BluetoothGattDescriptor descriptor = cubeCharacteristic.getDescriptor(CCCD_UUID);
         if (descriptor != null) {
-            descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+            descriptor.setValue(resolveCccdEnableValue(cubeCharacteristic));
             if (!gatt.writeDescriptor(descriptor)) {
                 Log.e(TAG, "QiYi 通知描述符写入失败，直接继续");
                 onNotificationsEnabled();
@@ -109,23 +186,32 @@ public class QiyiCubeProtocol implements SmartCubeProtocol {
         } else {
             onNotificationsEnabled();
         }
-        return true;
     }
 
     public void clear() {
         mainHandler.removeCallbacks(fallbackHelloRunnable);
+        mainHandler.removeCallbacks(helloRetryRunnable);
+        mainHandler.removeCallbacks(sendNextRequestRunnable);
         requestQueue.clear();
         notificationsReady = false;
         writePending = false;
+        writeWithoutResponse = false;
+        mtuReady = false;
         initialStateShown = false;
         helloReceived = false;
         fallbackHelloSent = false;
+        localResetActive = false;
         cubeCharacteristic = null;
+        writeCharacteristic = null;
+        fallbackWriteCharacteristic = null;
         gatt = null;
         deviceName = null;
         activeMac = null;
         fallbackMac = null;
         lastTimestamp = -1L;
+        protocolMismatchDetected = false;
+        nonProtocolMessageCount = 0;
+        helloAttemptCount = 0;
     }
 
     public void onDescriptorWrite(BluetoothGattDescriptor descriptor, int status) {
@@ -138,7 +224,8 @@ public class QiyiCubeProtocol implements SmartCubeProtocol {
     }
 
     public void onCharacteristicWrite(BluetoothGattCharacteristic characteristic, int status) {
-        if (characteristic == null || !CUBE_UUID.equals(characteristic.getUuid())) {
+        if (characteristic == null || writeCharacteristic == null
+                || !writeCharacteristic.getUuid().equals(characteristic.getUuid())) {
             return;
         }
         writePending = false;
@@ -156,6 +243,27 @@ public class QiyiCubeProtocol implements SmartCubeProtocol {
         }
     }
 
+    @Override
+    public void onMtuChanged(int mtu, int status) {
+        mtuReady = true;
+        Log.w(TAG, "QiYi MTU 结果 mtu=" + mtu + " status=" + status);
+        if (notificationsReady) {
+            return;
+        }
+        setupNotifications();
+    }
+
+    @Override
+    public void onLocalCubeReset(String cubeState) {
+        localResetActive = true;
+        lastTimestamp = -1L;
+        Log.w(TAG, "QiYi 接收本地手动重置，后续保持本地推演状态: " + cubeState);
+        byte[] syncState = buildSyncStateContent(cubeState);
+        if (syncState != null) {
+            enqueueMessage(syncState, true);
+        }
+    }
+
     private void onNotificationsEnabled() {
         if (notificationsReady) {
             return;
@@ -167,10 +275,11 @@ public class QiyiCubeProtocol implements SmartCubeProtocol {
             return;
         }
         activeMac = helloMac;
-        enqueueMessage(buildHelloContent(helloMac), true);
+        enqueueHello(true, "初始化");
         if (!TextUtils.isEmpty(fallbackMac) && !fallbackMac.equalsIgnoreCase(activeMac)) {
             mainHandler.postDelayed(fallbackHelloRunnable, FALLBACK_HELLO_DELAY_MS);
         }
+        mainHandler.postDelayed(helloRetryRunnable, HELLO_RETRY_DELAY_MS);
     }
 
     private void enqueueMessage(byte[] content, boolean priority) {
@@ -186,17 +295,45 @@ public class QiyiCubeProtocol implements SmartCubeProtocol {
         sendNextRequest();
     }
 
+    private void enqueueHello(boolean priority, String reason) {
+        if (TextUtils.isEmpty(activeMac) || protocolMismatchDetected) {
+            return;
+        }
+        if (helloAttemptCount >= MAX_HELLO_ATTEMPTS) {
+            Log.w(TAG, "QiYi 跳过 hello，已达到最大次数: " + reason);
+            return;
+        }
+        helloAttemptCount++;
+        Log.w(TAG, "QiYi 发送 hello #" + helloAttemptCount + "，原因: " + reason + "，MAC=" + activeMac);
+        enqueueMessage(buildHelloContent(activeMac), priority);
+    }
+
     private void sendNextRequest() {
-        if (!notificationsReady || writePending || gatt == null || cubeCharacteristic == null || requestQueue.isEmpty()) {
+        if (!notificationsReady || !mtuReady || writePending || gatt == null
+                || writeCharacteristic == null || requestQueue.isEmpty()) {
             return;
         }
         byte[] request = requestQueue.poll();
         try {
             byte[] encoded = encrypt(request);
-            cubeCharacteristic.setValue(encoded);
-            writePending = gatt.writeCharacteristic(cubeCharacteristic);
-            if (!writePending) {
-                Log.e(TAG, "QiYi 写入请求失败");
+            prepareWriteCharacteristic(encoded);
+            boolean writeIssued = gatt.writeCharacteristic(writeCharacteristic);
+            if (!writeIssued) {
+                Log.e(TAG, "QiYi 写入请求失败: " + writeCharacteristic.getUuid());
+                requestQueue.offerFirst(request);
+                writePending = false;
+                mainHandler.removeCallbacks(sendNextRequestRunnable);
+                mainHandler.postDelayed(sendNextRequestRunnable, WRITE_RETRY_DELAY_MS);
+                return;
+            }
+            if (writeWithoutResponse) {
+                writePending = false;
+                if (!requestQueue.isEmpty()) {
+                    mainHandler.removeCallbacks(sendNextRequestRunnable);
+                    mainHandler.post(sendNextRequestRunnable);
+                }
+            } else {
+                writePending = true;
             }
         } catch (GeneralSecurityException e) {
             Log.e(TAG, "QiYi 请求加密失败", e);
@@ -219,14 +356,14 @@ public class QiyiCubeProtocol implements SmartCubeProtocol {
             return;
         }
         byte[] msg = Arrays.copyOf(decoded, msgLength);
-        if ((msg[0] & 0xff) != 0xfe) {
-            Log.w(TAG, "QiYi 消息头非法");
-            return;
-        }
         if (crc16Modbus(msg, msg.length) != 0) {
-            Log.w(TAG, "QiYi CRC 校验失败");
             return;
         }
+        if ((msg[0] & 0xff) != 0xfe) {
+            handleNonProtocolMessage(msg);
+            return;
+        }
+        nonProtocolMessageCount = 0;
         int opcode = msg[2] & 0xff;
         long timestamp = readUint32(msg, 3);
         switch (opcode) {
@@ -236,6 +373,9 @@ public class QiyiCubeProtocol implements SmartCubeProtocol {
             case 0x03:
                 handleStateChange(msg, timestamp);
                 break;
+            case 0x04:
+                handleSyncConfirmation(msg, timestamp);
+                break;
             default:
                 Log.w(TAG, "QiYi 未知消息类型: " + opcode);
                 break;
@@ -244,7 +384,9 @@ public class QiyiCubeProtocol implements SmartCubeProtocol {
 
     private void handleHello(byte[] msg, long timestamp) {
         helloReceived = true;
+        nonProtocolMessageCount = 0;
         mainHandler.removeCallbacks(fallbackHelloRunnable);
+        mainHandler.removeCallbacks(helloRetryRunnable);
         sendAck(msg);
         if (msg.length < 36) {
             Log.w(TAG, "QiYi hello 数据长度不足");
@@ -256,13 +398,16 @@ public class QiyiCubeProtocol implements SmartCubeProtocol {
         }
         lastTimestamp = timestamp;
         smartCube.setBatteryValue(msg[35] & 0xff);
+        context.refreshSmartCubeStateUi();
         showInitialStateDialogIfNeeded();
         Log.w(TAG, "QiYi 初始状态: " + facelet);
     }
 
     private void handleStateChange(byte[] msg, long timestamp) {
         helloReceived = true;
+        nonProtocolMessageCount = 0;
         mainHandler.removeCallbacks(fallbackHelloRunnable);
+        mainHandler.removeCallbacks(helloRetryRunnable);
         sendAck(msg);
         if (msg.length < 36) {
             Log.w(TAG, "QiYi 状态数据长度不足");
@@ -308,12 +453,35 @@ public class QiyiCubeProtocol implements SmartCubeProtocol {
         }
 
         if (!facelet.equals(smartCube.getCubeState())) {
-            Log.w(TAG, "QiYi 状态与步序推演不一致，使用 facelet 重同步");
-            syncCubeState(facelet);
+            if (localResetActive) {
+                Log.w(TAG, "QiYi 检测到本地手动重置后的状态差异，保持本地推演，不用 facelet 回覆盖");
+            } else {
+                Log.w(TAG, "QiYi 状态与步序推演不一致，使用 facelet 重同步");
+                syncCubeState(facelet);
+                context.refreshSmartCubeStateUi();
+            }
         }
         smartCube.setBatteryValue(msg[35] & 0xff);
         showInitialStateDialogIfNeeded();
         lastTimestamp = Math.max(lastTimestamp, timestamp);
+    }
+
+    private void handleSyncConfirmation(byte[] msg, long timestamp) {
+        nonProtocolMessageCount = 0;
+        if (msg.length < 36) {
+            Log.w(TAG, "QiYi 同步确认数据长度不足");
+            return;
+        }
+        String facelet = parseFacelet(msg, 7);
+        if (!syncCubeState(facelet)) {
+            return;
+        }
+        localResetActive = false;
+        lastTimestamp = timestamp;
+        smartCube.setBatteryValue(msg[35] & 0xff);
+        context.refreshSmartCubeStateUi();
+        showInitialStateDialogIfNeeded();
+        Log.w(TAG, "QiYi 设备状态同步确认: " + facelet);
     }
 
     private void sendAck(byte[] msg) {
@@ -355,6 +523,40 @@ public class QiyiCubeProtocol implements SmartCubeProtocol {
             content[header.length + i] = macBytes[5 - i];
         }
         return content;
+    }
+
+    private byte[] buildSyncStateContent(String cubeState) {
+        byte[] stateBytes = encodeFacelet(cubeState);
+        if (stateBytes == null) {
+            Log.e(TAG, "QiYi 构建同步状态失败，facelet 非法: " + cubeState);
+            return null;
+        }
+        byte[] content = new byte[SYNC_STATE_PREFIX.length + stateBytes.length + SYNC_STATE_SUFFIX.length];
+        System.arraycopy(SYNC_STATE_PREFIX, 0, content, 0, SYNC_STATE_PREFIX.length);
+        System.arraycopy(stateBytes, 0, content, SYNC_STATE_PREFIX.length, stateBytes.length);
+        System.arraycopy(SYNC_STATE_SUFFIX, 0, content,
+                SYNC_STATE_PREFIX.length + stateBytes.length, SYNC_STATE_SUFFIX.length);
+        return content;
+    }
+
+    private byte[] encodeFacelet(String facelet) {
+        if (TextUtils.isEmpty(facelet) || facelet.length() < 54) {
+            return null;
+        }
+        byte[] encoded = new byte[27];
+        for (int i = 0; i < 54; i++) {
+            int value = FACELET_ORDER.indexOf(facelet.charAt(i));
+            if (value < 0) {
+                return null;
+            }
+            int byteIndex = i >> 1;
+            if ((i & 1) == 0) {
+                encoded[byteIndex] = (byte) (value & 0x0f);
+            } else {
+                encoded[byteIndex] = (byte) ((encoded[byteIndex] & 0x0f) | ((value & 0x0f) << 4));
+            }
+        }
+        return encoded;
     }
 
     private byte[] buildMessage(byte[] content) {
@@ -444,11 +646,90 @@ public class QiyiCubeProtocol implements SmartCubeProtocol {
             return null;
         }
         String normalized = name.trim().toUpperCase(Locale.US);
-        if (!normalized.matches("^(QY-QYSC|XMD-TORNADOV4-I)-.-[0-9A-F]{4}$")) {
+        if (!(normalized.startsWith("QY-QYSC-") || normalized.startsWith("XMD-TORNADOV4-I-"))) {
             return null;
         }
         String suffix = normalized.substring(normalized.length() - 4);
+        if (!suffix.matches("[0-9A-F]{4}")) {
+            return null;
+        }
         return "CC:A3:00:00:" + suffix.substring(0, 2) + ":" + suffix.substring(2, 4);
+    }
+
+    private BluetoothGattCharacteristic resolveWriteCharacteristic(BluetoothGattService service,
+                                                                   BluetoothGattCharacteristic notifyCharacteristic) {
+        if (supportsWrite(notifyCharacteristic)) {
+            return notifyCharacteristic;
+        }
+        return resolveFallbackWriteCharacteristic(service, notifyCharacteristic);
+    }
+
+    private BluetoothGattCharacteristic resolveFallbackWriteCharacteristic(BluetoothGattService service,
+                                                                           BluetoothGattCharacteristic notifyCharacteristic) {
+        BluetoothGattCharacteristic candidate = service.getCharacteristic(WRITE_UUID);
+        if (candidate == null) {
+            return null;
+        }
+        if (notifyCharacteristic != null && candidate.getUuid().equals(notifyCharacteristic.getUuid())) {
+            return null;
+        }
+        return candidate;
+    }
+
+    private boolean supportsWrite(BluetoothGattCharacteristic characteristic) {
+        if (characteristic == null) {
+            return false;
+        }
+        int properties = characteristic.getProperties();
+        return (properties & BluetoothGattCharacteristic.PROPERTY_WRITE) != 0
+                || (properties & BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0;
+    }
+
+    private void prepareWriteCharacteristic(byte[] encoded) {
+        int properties = writeCharacteristic.getProperties();
+        writeWithoutResponse = (properties & BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0;
+        writeCharacteristic.setWriteType(writeWithoutResponse
+                ? BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+                : BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
+        writeCharacteristic.setValue(encoded);
+        Log.w(TAG, "QiYi 写入特征 " + writeCharacteristic.getUuid()
+                + " writeType=" + (writeWithoutResponse ? "NO_RESPONSE" : "DEFAULT"));
+    }
+
+    private void handleNonProtocolMessage(byte[] msg) {
+        nonProtocolMessageCount++;
+        if (nonProtocolMessageCount <= 3) {
+            Log.w(TAG, String.format(Locale.US,
+                    "QiYi 收到非 FE 帧 header=0x%02X len=%d via=%s",
+                    msg[0] & 0xff, msg.length,
+                    writeCharacteristic == null ? "null" : writeCharacteristic.getUuid().toString()));
+        }
+        if (!helloReceived && (msg[0] & 0xff) == 0xcc && nonProtocolMessageCount >= 3 && !protocolMismatchDetected) {
+            protocolMismatchDetected = true;
+            requestQueue.clear();
+            mainHandler.removeCallbacks(fallbackHelloRunnable);
+            mainHandler.removeCallbacks(helloRetryRunnable);
+            mainHandler.removeCallbacks(sendNextRequestRunnable);
+            Log.w(TAG, "QiYi 检测到稳定的 0xCC 协议帧，停止后续 hello/切通道重试，避免干扰主流程");
+        }
+    }
+
+    private byte[] resolveCccdEnableValue(BluetoothGattCharacteristic characteristic) {
+        int properties = characteristic.getProperties();
+        if ((properties & BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0
+                && (properties & BluetoothGattCharacteristic.PROPERTY_NOTIFY) == 0) {
+            Log.w(TAG, "QiYi 特征使用 indicate");
+            return BluetoothGattDescriptor.ENABLE_INDICATION_VALUE;
+        }
+        return BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE;
+    }
+
+    private void logCharacteristicProperties(BluetoothGattCharacteristic characteristic) {
+        int properties = characteristic.getProperties();
+        Log.w(TAG, "QiYi 特征属性 notify=" + ((properties & BluetoothGattCharacteristic.PROPERTY_NOTIFY) != 0)
+                + " indicate=" + ((properties & BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0)
+                + " write=" + ((properties & BluetoothGattCharacteristic.PROPERTY_WRITE) != 0)
+                + " writeNoRsp=" + ((properties & BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0));
     }
 
     private byte[] encrypt(byte[] value) throws GeneralSecurityException {

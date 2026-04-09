@@ -59,7 +59,7 @@
         android:textSize="15sp"
         android:visibility="gone"/>
 
-    <ImageView
+    <com.dctimer.view.SmartCubeImageView
         android:id="@+id/image_view"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -71,7 +71,7 @@
         android:layout_height="42dp"
         android:background="@color/transparent"
         android:textColor="@drawable/button_text_style"
-        android:text="@string/btn_mark_solve"
+        android:text="@string/btn_cube_reset"
         android:textSize="15sp"/>
 
     <Button
@@ -80,6 +80,6 @@
         android:layout_height="42dp"
         android:background="@color/transparent"
         android:textColor="@drawable/button_text_style"
-        android:text="@string/btn_mark_scramble"
+        android:text="@string/disconnect"
         android:textSize="15sp"/>
 </LinearLayout>
