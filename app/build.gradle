@@ -22,6 +22,11 @@ def hasReleaseSigning = releaseSigning.every { _, value ->
     value != null && value.toString().trim()
 }
 
+def appVersionCode = 200
+def appVersionName = "2.0 Beta"
+def releaseApkBaseName = "DCTimer-BLE-v${appVersionName}".toString()
+def releaseApkFileName = "${releaseApkBaseName}.apk".toString()
+
 android {
     namespace 'com.dctimer'
     compileSdk 35
@@ -30,8 +35,8 @@ android {
         applicationId "com.dctimer.ble"
         minSdk 14
         targetSdk 35
-        versionCode 200
-        versionName "2.0 Beta"
+        versionCode appVersionCode
+        versionName appVersionName
     }
 
     compileOptions {
@@ -65,6 +70,47 @@ android {
     lint {
         checkReleaseBuilds false
         abortOnError false
+    }
+}
+
+tasks.register("renameReleaseApk") {
+    doLast {
+        def releaseOutputDir = file("${layout.buildDirectory.get().asFile}/outputs/apk/release")
+        def renamedApk = new File(releaseOutputDir, releaseApkFileName)
+        def generatedApk = releaseOutputDir.listFiles()?.find { file ->
+            file.name.toLowerCase().endsWith(".apk") && file.name != releaseApkFileName
+        }
+        def outputMetadataFile = new File(releaseOutputDir, "output-metadata.json")
+
+        if (generatedApk == null) {
+            return
+        }
+
+        if (renamedApk.exists()) {
+            renamedApk.delete()
+        }
+
+        if (!generatedApk.renameTo(renamedApk)) {
+            copy {
+                from generatedApk
+                into releaseOutputDir
+                rename { releaseApkFileName }
+            }
+            delete generatedApk
+        }
+
+        if (outputMetadataFile.exists()) {
+            def outputMetadataText = outputMetadataFile.getText("UTF-8")
+            outputMetadataText = outputMetadataText.replace('"outputFile": "app-release.apk"', "\"outputFile\": \"${releaseApkFileName}\"")
+            outputMetadataText = outputMetadataText.replace('"outputFile": "DCTimer-BLE-vnull.apk"', "\"outputFile\": \"${releaseApkFileName}\"")
+            outputMetadataFile.write(outputMetadataText, "UTF-8")
+        }
+    }
+}
+
+tasks.configureEach { task ->
+    if (task.name == "assembleRelease") {
+        task.finalizedBy("renameReleaseApk")
     }
 }
 
