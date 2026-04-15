@@ -49,6 +49,14 @@
                 android:gravity="center"
                 android:button="@null"
                 android:drawableTop="@drawable/setting_button_style"/>
+
+            <com.dctimer.widget.CenterRadioButton
+                android:id="@+id/rb_battle"
+                android:layout_width="?android:attr/actionBarSize"
+                android:layout_height="?android:attr/actionBarSize"
+                android:gravity="center"
+                android:button="@null"
+                android:drawableTop="@drawable/battle_button_style"/>
         </RadioGroup>
     </com.dctimer.widget.CustomToolbar>
 
@@ -76,6 +84,9 @@
 
                 <include android:id="@+id/tab_settings"
                     layout="@layout/fragment_setting" />
+
+                <include android:id="@+id/tab_battle"
+                    layout="@layout/fragment_battle" />
             </FrameLayout>
 
             <TabWidget

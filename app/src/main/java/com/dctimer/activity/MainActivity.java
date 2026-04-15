@@ -94,10 +94,18 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private TextAdapter s2Adapter;
     //private ListView listView;
     private View view;
-    private CenterRadioButton rbTimer, rbResult, rbSetting;
+    private CenterRadioButton rbTimer, rbResult, rbSetting, rbBattle;
     private ProgressBar pbScramble;
     private ProgressBar pbScan;
     private TextView tvTest;
+    private TextView tvBattleNick;
+    private TextView tvBattleRoomCount;
+    private TextView btnBattleEditNick;
+    private TextView btnBattleCreateRoom;
+    private TextView btnBattleRefresh;
+    private LinearLayout btnBattleRoomA;
+    private LinearLayout btnBattleRoomB;
+    private LinearLayout btnBattleRoomC;
     private Button btnScan;
     private final Runnable stopBleScanRunnable = new Runnable() {
         @Override
@@ -251,8 +259,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         frame = findViewById(R.id.main_layout);
         tabHost = findViewById(R.id.tabhost);
         tabHost.setup();
-        int[] ids = {R.id.tab_timer, R.id.tab_result, R.id.tab_settings};
-        for (int i = 0; i < 3; i++) {
+        int[] ids = {R.id.tab_timer, R.id.tab_result, R.id.tab_settings, R.id.tab_battle};
+        for (int i = 0; i < ids.length; i++) {
             TabHost.TabSpec myTab = tabHost.newTabSpec("tab" + i);
             myTab.setIndicator("tab");
             myTab.setContent(ids[i]);
@@ -283,6 +291,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     case R.id.rb_setting:
                         curTab = 2;
                         break;
+                    case R.id.rb_battle:
+                        curTab = 3;
+                        break;
                 }
                 tabHost.setCurrentTab(curTab);
             }
@@ -290,6 +301,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         rbTimer = findViewById(R.id.rb_timer);
         rbResult = findViewById(R.id.rb_result);
         rbSetting = findViewById(R.id.rb_setting);
+        rbBattle = findViewById(R.id.rb_battle);
 
         //计时
         tvScramble = findViewById(R.id.tv_scramble);
@@ -306,6 +318,20 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         tvTimer = findViewById(R.id.tv_timer);
         tvTimer.setOnTouchListener(mOnTouchListener);
         scrambleView = findViewById(R.id.iv_scramble);
+        tvBattleNick = findViewById(R.id.tv_battle_nick);
+        tvBattleRoomCount = findViewById(R.id.tv_battle_room_count);
+        btnBattleEditNick = findViewById(R.id.btn_battle_edit_nick);
+        btnBattleEditNick.setOnClickListener(mOnClickListener);
+        btnBattleCreateRoom = findViewById(R.id.btn_battle_create_room);
+        btnBattleCreateRoom.setOnClickListener(mOnClickListener);
+        btnBattleRefresh = findViewById(R.id.btn_battle_refresh);
+        btnBattleRefresh.setOnClickListener(mOnClickListener);
+        btnBattleRoomA = findViewById(R.id.btn_battle_room_a);
+        btnBattleRoomA.setOnClickListener(mOnClickListener);
+        btnBattleRoomB = findViewById(R.id.btn_battle_room_b);
+        btnBattleRoomB.setOnClickListener(mOnClickListener);
+        btnBattleRoomC = findViewById(R.id.btn_battle_room_c);
+        btnBattleRoomC.setOnClickListener(mOnClickListener);
         int tvHeight = (int) (dm.heightPixels - 76 * dpi) / 2;
         tvScramble.setHeight(tvHeight);
         //tvScramble.setMovementMethod(ScrollingMovementMethod.getInstance());
@@ -385,6 +411,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         rvSetting.setLayoutManager(new LinearLayoutManager(context));
         rvSetting.setAdapter(stAdapter);
         //rvSetting.setOnItemClickListener(mOnItemListener);
+        bindBattleMockData();
 
         currentScramble = new Scrambler(sp);
         currentScramble.setContext(context);
@@ -1908,6 +1935,19 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 case R.id.bt_cube_reset:
                     resetSmartCubeToSolved();
                     break;
+                case R.id.btn_battle_edit_nick:
+                    Toast.makeText(context, "POC：后续改成昵称弹层", Toast.LENGTH_SHORT).show();
+                    break;
+                case R.id.btn_battle_create_room:
+                case R.id.btn_battle_room_a:
+                case R.id.btn_battle_room_b:
+                case R.id.btn_battle_room_c:
+                    startActivity(new Intent(context, BattleRoomActivity.class));
+                    break;
+                case R.id.btn_battle_refresh:
+                    bindBattleMockData();
+                    Toast.makeText(context, R.string.btn_refresh, Toast.LENGTH_SHORT).show();
+                    break;
                 case R.id.btn_scan: //扫描设备
                     if (ensureBlePermissions(false, true)) {
                         startBleScanInternal();
@@ -3234,6 +3274,13 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
     }
 
+    private void bindBattleMockData() {
+        if (tvBattleNick == null) return;
+        tvBattleNick.setText("昵称：会枝");
+        tvBattleNick.setTextColor(APP.getTextColor());
+        tvBattleRoomCount.setText("3 个房间");
+    }
+
     private void setVisibility(boolean v) {	//设置控件的隐藏 TODO
         int vi = v ? View.VISIBLE : View.GONE;
         tvScramble.setVisibility(vi);
@@ -3323,38 +3370,39 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     }
 
     private void setTimerFont() {   //设置计时器字体
+        Typeface timerTypeface = null;
         switch (timerFont) {
             case 0:
-                tvTimer.setTypeface(Typeface.create("monospace", Typeface.NORMAL));
-                tvMulPhase.setTypeface(Typeface.create("monospace", Typeface.NORMAL));
+                timerTypeface = Typeface.create("monospace", Typeface.NORMAL);
                 break;
             case 1:
-                tvTimer.setTypeface(Typeface.create("serif", Typeface.NORMAL));
-                tvMulPhase.setTypeface(Typeface.create("serif", Typeface.NORMAL));
+                timerTypeface = Typeface.create("serif", Typeface.NORMAL);
                 break;
             case 2:
-                tvTimer.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
-                tvMulPhase.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+                timerTypeface = Typeface.create("sans-serif", Typeface.NORMAL);
                 break;
             case 3:
-                tvTimer.setTypeface(Typeface.createFromAsset(getAssets(), "Ds.ttf"));
-                tvMulPhase.setTypeface(Typeface.createFromAsset(getAssets(), "Ds.ttf"));
+                timerTypeface = Typeface.createFromAsset(getAssets(), "Ds.ttf");
                 break;
             case 4:
-                tvTimer.setTypeface(Typeface.createFromAsset(getAssets(), "Df.ttf"));
-                tvMulPhase.setTypeface(Typeface.createFromAsset(getAssets(), "Df.ttf"));
+                timerTypeface = Typeface.createFromAsset(getAssets(), "Df.ttf");
                 break;
             case 5:
-                tvTimer.setTypeface(Typeface.createFromAsset(getAssets(), "lcd.ttf"));
-                tvMulPhase.setTypeface(Typeface.createFromAsset(getAssets(), "lcd.ttf"));
+                timerTypeface = Typeface.createFromAsset(getAssets(), "lcd.ttf");
                 break;
+        }
+        if (timerTypeface != null) {
+            tvTimer.setTypeface(timerTypeface);
+            tvMulPhase.setTypeface(timerTypeface);
         }
     }
 
     private void setScrambleFont() {    //设置打乱字体
+        Typeface scrambleTypeface;
         if (monoFont)
-            tvScramble.setTypeface(Typeface.create("monospace", Typeface.NORMAL));
-        else tvScramble.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+            scrambleTypeface = Typeface.create("monospace", Typeface.NORMAL);
+        else scrambleTypeface = Typeface.create("sans-serif", Typeface.NORMAL);
+        tvScramble.setTypeface(scrambleTypeface);
     }
 
     public void setScrambleSize() {
@@ -3405,6 +3453,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         rbTimer.setColor(color);
         rbResult.setColor(color);
         rbSetting.setColor(color);
+        rbBattle.setColor(color);
         toolbar.setItemColor(color);
         btnLeft.getDrawable().setColorFilter(color, PorterDuff.Mode.SRC_IN);
         btnRight.getDrawable().setColorFilter(color, PorterDuff.Mode.SRC_IN);

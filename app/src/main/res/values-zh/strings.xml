@@ -5,6 +5,7 @@
     <string name="tab_result">成绩</string>
     <string name="tab_session">分组</string>
     <string name="tab_settings">设置</string>
+    <string name="tab_battle">对战</string>
     <string name="title_activity_detail">统计详情</string>
     <string name="title_activity_session">分组管理</string>
 
@@ -24,6 +25,7 @@
     <string name="action_exit">退出</string>
     <string name="action_stackmat">Stackmat计时器</string>
     <string name="action_smartcube">智能魔方</string>
+    <string name="action_battle">在线房间</string>
     <string name="action_scramble">打乱详情</string>
 
     <string name="scrambling">打乱中…</string>
@@ -134,6 +136,8 @@
     <string name="btn_scan">扫描</string>
     <string name="btn_cube_reset">重置魔方</string>
     <string name="btn_refresh">刷新</string>
+    <string name="btn_show_detail">查看完整信息</string>
+    <string name="btn_hide_detail">收起完整信息</string>
     <string name="btn_mark_solve">标记为还原状态</string>
     <string name="btn_mark_scramble">标记为正确打乱</string>
     <string name="btn_solution">解法</string>

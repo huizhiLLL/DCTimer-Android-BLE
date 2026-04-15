@@ -9,6 +9,7 @@
     <string name="tab_result">Result</string>
     <string name="tab_session">Session</string>
     <string name="tab_settings">Settings</string>
+    <string name="tab_battle">Battle</string>
 
     <string name="action_import_scramble">Import Scramble</string>
     <string name="action_export_scramble">Export Scramble</string>
@@ -26,6 +27,7 @@
     <string name="action_exit">Exit</string>
     <string name="action_stackmat">Stackmat timer</string>
     <string name="action_smartcube">Smart cube</string>
+    <string name="action_battle">Online battle</string>
     <string name="action_scramble">Scramble detail</string>
 
     <string name="scrambling">scrambling…</string>
@@ -135,6 +137,8 @@
     <string name="btn_scan">Scan</string>
     <string name="btn_cube_reset">Reset cube</string>
     <string name="btn_refresh">Refresh</string>
+    <string name="btn_show_detail">Show details</string>
+    <string name="btn_hide_detail">Hide details</string>
     <string name="btn_mark_solve">Mark solved</string>
     <string name="btn_mark_scramble">Mark scrambled</string>
     <string name="btn_solution">Solution</string>
