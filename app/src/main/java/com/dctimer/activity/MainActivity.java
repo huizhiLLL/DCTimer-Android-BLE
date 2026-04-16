@@ -439,7 +439,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         sensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         bluetoothTools = new BluetoothTools(this);
         bluetoothTools.setCubeStateChangedCallback(cubeStateChangeCallback);
-        bluetoothTools.setTimeChangedCallback(timeChangedCallback);
+        bluetoothTools.setTimerStateCallback(timerStateCallback);
         //getBluetoothAdapter();
     }
 
@@ -983,6 +983,10 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
     private void openBleScanDialog() {
         View v = LayoutInflater.from(this).inflate(R.layout.dialog_bluetooth, null);
+        TextView titleView = v.findViewById(R.id.tv_title);
+        if (titleView != null) {
+            titleView.setText(isSmartTimerMode() ? R.string.select_smart_timer : R.string.select_smart_cube);
+        }
         btnScan = v.findViewById(R.id.btn_scan);
         btnScan.setOnClickListener(mOnClickListener);
         pbScan = v.findViewById(R.id.progress);
@@ -1036,8 +1040,20 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 || deviceType == BLEDevice.TYPE_QIYI_CUBE;
     }
 
+    private boolean isSmartTimerDeviceType(int deviceType) {
+        return deviceType == BLEDevice.TYPE_QIYI_TIMER;
+    }
+
+    private boolean isSmartCubeMode() {
+        return enterTime == 3;
+    }
+
+    private boolean isSmartTimerMode() {
+        return enterTime == 4;
+    }
+
     private SmartCube getActiveSmartCube() {
-        if (enterTime != 3 || bluetoothTools == null || !isSmartCubeDeviceType(bleDeviceType)) {
+        if (!isSmartCubeMode() || bluetoothTools == null || !isSmartCubeDeviceType(bleDeviceType)) {
             return null;
         }
         return bluetoothTools.getCube();
@@ -1495,7 +1511,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         if (btnScan != null) btnScan.setVisibility(View.VISIBLE);
     }
 
-    public void connectCube(int pos) {
+    public void connectBleDevice(int pos) {
         bluetoothTools.connectDevice(pos);
     }
 
@@ -1515,6 +1531,11 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 if (adapter != null)
                     adapter.notifyDataSetChanged();
                 Toast.makeText(context, device.getName() + getString(R.string.cube_not_connected), Toast.LENGTH_SHORT).show();
+                if (isSmartTimerMode()) {
+                    setTimerColor(APP.getTextColor());
+                    setTimerText(getIdleTimerText());
+                    timer.setTimerState(DCTTimer.READY);
+                }
                 updateSmartCubeResetButton();
                 showScrambleView();
                 updateScrambleTextView();
@@ -1638,30 +1659,88 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         }
     };
 
-    private SmartTimer.TimeChangedCallback timeChangedCallback = new SmartTimer.TimeChangedCallback() {
+    private SmartTimerProtocol.StateCallback timerStateCallback = new SmartTimerProtocol.StateCallback() {
         @Override
-        public void onTimeChanged(final int time, final int lastTime) {
+        public void onTimerIdle(final int time) {
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    setTimerText(StringUtils.timeToString(time));
-                    if (time == 0)
-                        timer.setTimerState(DCTTimer.READY);
-                    else if (time == lastTime) {
-                        if (timer.getTimerState() == DCTTimer.RUNNING) {
-                            timer.setTimerState(DCTTimer.STOP);
-                            save(time);
-                        }
-                    } else {
-                        timer.setTimerState(DCTTimer.RUNNING);
+                    if (!isSmartTimerMode()) {
+                        return;
                     }
+                    setTimerColor(APP.getTextColor());
+                    setTimerText(time > 0 ? StringUtils.timeToString(time) : getIdleTimerText());
+                    timer.setTimerState(DCTTimer.READY);
                 }
             });
+        }
 
-//            if (time == 0) {
-//                timer.setTimerState(DCTTimer.READY);
-//
-//            }
+        @Override
+        public void onTimerReady(final int time) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (!isSmartTimerMode()) {
+                        return;
+                    }
+                    setTimerColor(0xff00ff00);
+                    setTimerText(time > 0 ? StringUtils.timeToString(time) : getIdleTimerText());
+                    timer.setTimerState(DCTTimer.READY);
+                }
+            });
+        }
+
+        @Override
+        public void onTimerRunning(final int time) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (!isSmartTimerMode()) {
+                        return;
+                    }
+                    setTimerColor(APP.getTextColor());
+                    setTimerText(StringUtils.timeToString(time));
+                    timer.setTimerState(DCTTimer.RUNNING);
+                }
+            });
+        }
+
+        @Override
+        public void onTimerStopped(final int time) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (!isSmartTimerMode()) {
+                        return;
+                    }
+                    if (timer.getTimerState() == DCTTimer.STOP) {
+                        return;
+                    }
+                    setTimerColor(APP.getTextColor());
+                    setTimerText(StringUtils.timeToString(time));
+                    if (timer.getTimerState() == DCTTimer.RUNNING) {
+                        timer.setTimerState(DCTTimer.STOP);
+                    } else {
+                        timer.setTimerState(DCTTimer.READY);
+                    }
+                    save(time);
+                }
+            });
+        }
+
+        @Override
+        public void onTimerDisconnected() {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (!isSmartTimerMode()) {
+                        return;
+                    }
+                    setTimerColor(APP.getTextColor());
+                    setTimerText(getIdleTimerText());
+                    timer.setTimerState(DCTTimer.READY);
+                }
+            });
         }
     };
 
@@ -2020,6 +2099,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                                 stackmat.stop();
                                 stackmat = null;
                             }
+                            updateSmartCubeResetButton();
                             startBleScanFlow();
                         }
                         //else
@@ -3048,8 +3128,10 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             setTimerText("0" + (decimalMark == 0 ? "." : ",") + (timerAccuracy == 0 ? "00" : "000"));
         } else if (enterTime == 1)
             setTimerText("IMPORT");
-        else if (enterTime == 2 || enterTime == 3) {  //TODO SS计时器
+        else if (enterTime == 2) {
             startStackmat();
+        } else {
+            setTimerText(getIdleTimerText());
         }
 
         //屏幕方向
@@ -3640,7 +3722,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                         break;
                 }
                 isSwipe = false;
-            } else if(enterTime == 3) { //蓝牙设备
+            } else if (isSmartCubeMode()) {
                 if (isSmartCubeDeviceType(bleDeviceType)) {
                     if (bluetoothTools.getCube() != null) {
                         CubeStateDialog dialog = CubeStateDialog.newInstance(bluetoothTools.getCube());

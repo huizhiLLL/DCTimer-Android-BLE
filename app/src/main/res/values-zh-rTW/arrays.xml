@@ -220,6 +220,8 @@
         <item>計時器</item>
         <item>手動輸入</item>
         <item>Stackmat</item>
+        <item>智能方塊</item>
+        <item>藍牙計時器</item>
     </array>
 
     <array name="opt_solve_222">

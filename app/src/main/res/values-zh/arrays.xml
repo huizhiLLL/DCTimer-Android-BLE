@@ -215,7 +215,8 @@
         <item>计时器</item>
         <item>手动输入</item>
         <item>Stackmat</item>
-        <item>蓝牙设备</item>
+        <item>智能魔方</item>
+        <item>蓝牙计时器</item>
     </array>
 
     <array name="opt_solve_222">

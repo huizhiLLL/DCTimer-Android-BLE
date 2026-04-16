@@ -52,6 +52,8 @@
     <string name="connect_fail">连接失败</string>
     <string name="status">状态</string>
     <string name="select_device">选择设备</string>
+    <string name="select_smart_cube">选择智能魔方</string>
+    <string name="select_smart_timer">选择蓝牙计时器</string>
     <!-- 设置 -->
     <string name="title_timer">计时</string>
     <string name="title_scramble">打乱</string>

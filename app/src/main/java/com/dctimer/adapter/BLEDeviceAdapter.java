@@ -51,7 +51,7 @@ public class BLEDeviceAdapter extends RecyclerView.Adapter<BLEDeviceAdapter.View
             @Override
             public void onClick(View view) {
                 int pos = holder.getAdapterPosition();
-                context.connectCube(pos);
+                context.connectBleDevice(pos);
             }
         });
         return holder;
