@@ -54,6 +54,8 @@
     <string name="disconnect">Disconnect</string>
     <string name="status">Status</string>
     <string name="select_device">Select device</string>
+    <string name="select_smart_cube">Select smart cube</string>
+    <string name="select_smart_timer">Select Bluetooth timer</string>
     <!-- Settings -->
     <string name="title_timer">TIMER</string>
     <string name="title_scramble">SCRAMBLE</string>

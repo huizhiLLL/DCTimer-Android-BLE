@@ -4,20 +4,21 @@ public class BLEDevice {
     public static final int TYPE_UNKNOWN = -1;
     public static final int TYPE_GIIKER_CUBE = 0;
     public static final int TYPE_GANI_CUBE = 1;
-    public static final int TYPE_GAN_TIMER = 2;
     public static final int TYPE_GAN_ROBOT = 3;
     public static final int TYPE_MOYU32_CUBE = 4;
     public static final int TYPE_QIYI_CUBE = 5;
+    public static final int TYPE_QIYI_TIMER = 6;
     private String name;
     private String address;
     private String protocolAddress;
     private int connected;
-    //private int type;
+    private int type;
 
     public BLEDevice(String name, String address) {
         this.name = name;
         this.address = address;
         this.protocolAddress = address;
+        this.type = TYPE_UNKNOWN;
     }
 
     public String getName() {
@@ -50,5 +51,13 @@ public class BLEDevice {
 
     public void setConnected(int connected) {
         this.connected = connected;
+    }
+
+    public int getType() {
+        return type;
+    }
+
+    public void setType(int type) {
+        this.type = type;
     }
 }

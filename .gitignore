@@ -39,3 +39,8 @@ Thumbs.db
 
 # BAT
 rel.bat
+
+# DESIGN
+design/
+
+other/
