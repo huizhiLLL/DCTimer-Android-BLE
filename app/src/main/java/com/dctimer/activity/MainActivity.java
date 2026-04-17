@@ -100,12 +100,20 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private TextView tvTest;
     private TextView tvBattleNick;
     private TextView tvBattleRoomCount;
+    private TextView tvBattleLobbyTip;
     private TextView btnBattleEditNick;
     private TextView btnBattleCreateRoom;
     private TextView btnBattleRefresh;
     private LinearLayout btnBattleRoomA;
     private LinearLayout btnBattleRoomB;
     private LinearLayout btnBattleRoomC;
+    private TextView tvBattleRoomAName;
+    private TextView tvBattleRoomAMeta;
+    private TextView tvBattleRoomBName;
+    private TextView tvBattleRoomBMeta;
+    private TextView tvBattleRoomCName;
+    private TextView tvBattleRoomCMeta;
+    private final BattleRepository battleRepository = MockBattleRepository.getInstance();
     private Button btnScan;
     private final Runnable stopBleScanRunnable = new Runnable() {
         @Override
@@ -320,6 +328,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         scrambleView = findViewById(R.id.iv_scramble);
         tvBattleNick = findViewById(R.id.tv_battle_nick);
         tvBattleRoomCount = findViewById(R.id.tv_battle_room_count);
+        tvBattleLobbyTip = findViewById(R.id.tv_battle_lobby_tip);
         btnBattleEditNick = findViewById(R.id.btn_battle_edit_nick);
         btnBattleEditNick.setOnClickListener(mOnClickListener);
         btnBattleCreateRoom = findViewById(R.id.btn_battle_create_room);
@@ -332,6 +341,12 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         btnBattleRoomB.setOnClickListener(mOnClickListener);
         btnBattleRoomC = findViewById(R.id.btn_battle_room_c);
         btnBattleRoomC.setOnClickListener(mOnClickListener);
+        tvBattleRoomAName = findViewById(R.id.tv_battle_room_a_name);
+        tvBattleRoomAMeta = findViewById(R.id.tv_battle_room_a_meta);
+        tvBattleRoomBName = findViewById(R.id.tv_battle_room_b_name);
+        tvBattleRoomBMeta = findViewById(R.id.tv_battle_room_b_meta);
+        tvBattleRoomCName = findViewById(R.id.tv_battle_room_c_name);
+        tvBattleRoomCMeta = findViewById(R.id.tv_battle_room_c_meta);
         int tvHeight = (int) (dm.heightPixels - 76 * dpi) / 2;
         tvScramble.setHeight(tvHeight);
         //tvScramble.setMovementMethod(ScrollingMovementMethod.getInstance());
@@ -411,7 +426,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         rvSetting.setLayoutManager(new LinearLayoutManager(context));
         rvSetting.setAdapter(stAdapter);
         //rvSetting.setOnItemClickListener(mOnItemListener);
-        bindBattleMockData();
+        bindBattleLobbyData();
 
         currentScramble = new Scrambler(sp);
         currentScramble.setContext(context);
@@ -1939,13 +1954,19 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     Toast.makeText(context, "POC：后续改成昵称弹层", Toast.LENGTH_SHORT).show();
                     break;
                 case R.id.btn_battle_create_room:
+                    openBattleRoom(MockBattleRepository.ROOM_ID_CREATED);
+                    break;
                 case R.id.btn_battle_room_a:
+                    openBattleRoom(MockBattleRepository.ROOM_ID_A);
+                    break;
                 case R.id.btn_battle_room_b:
+                    openBattleRoom(MockBattleRepository.ROOM_ID_B);
+                    break;
                 case R.id.btn_battle_room_c:
-                    startActivity(new Intent(context, BattleRoomActivity.class));
+                    openBattleRoom(MockBattleRepository.ROOM_ID_C);
                     break;
                 case R.id.btn_battle_refresh:
-                    bindBattleMockData();
+                    bindBattleLobbyData();
                     Toast.makeText(context, R.string.btn_refresh, Toast.LENGTH_SHORT).show();
                     break;
                 case R.id.btn_scan: //扫描设备
@@ -3274,11 +3295,37 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
     }
 
-    private void bindBattleMockData() {
+    private void openBattleRoom(String roomId) {
+        startActivity(BattleRoomActivity.newIntent(context, roomId));
+    }
+
+    private void bindBattleLobbyData() {
         if (tvBattleNick == null) return;
-        tvBattleNick.setText("昵称：会枝");
+        BattleLobbyUiModel uiModel = battleRepository.getLobbyUiModel();
+        tvBattleNick.setText(uiModel.getNicknameText());
         tvBattleNick.setTextColor(APP.getTextColor());
-        tvBattleRoomCount.setText("3 个房间");
+        tvBattleRoomCount.setText(uiModel.getRoomCountText());
+        tvBattleLobbyTip.setText(uiModel.getLobbyTipText());
+        tvBattleLobbyTip.setTextColor(0xff757575);
+
+        List<BattleLobbyUiModel.RoomItem> rooms = uiModel.getRooms();
+        bindBattleLobbyRoom(rooms, 0, btnBattleRoomA, tvBattleRoomAName, tvBattleRoomAMeta);
+        bindBattleLobbyRoom(rooms, 1, btnBattleRoomB, tvBattleRoomBName, tvBattleRoomBMeta);
+        bindBattleLobbyRoom(rooms, 2, btnBattleRoomC, tvBattleRoomCName, tvBattleRoomCMeta);
+    }
+
+    private void bindBattleLobbyRoom(List<BattleLobbyUiModel.RoomItem> rooms, int index,
+                                     LinearLayout roomLayout, TextView nameView, TextView metaView) {
+        if (rooms == null || index >= rooms.size()) {
+            roomLayout.setVisibility(View.GONE);
+            return;
+        }
+        roomLayout.setVisibility(View.VISIBLE);
+        BattleLobbyUiModel.RoomItem room = rooms.get(index);
+        nameView.setText(room.getRoomName());
+        nameView.setTextColor(APP.getTextColor());
+        metaView.setText(room.getRoomMeta());
+        metaView.setTextColor(0xff757575);
     }
 
     private void setVisibility(boolean v) {	//设置控件的隐藏 TODO

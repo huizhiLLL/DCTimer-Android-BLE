@@ -1,5 +1,7 @@
 package com.dctimer.activity;
 
+import android.content.Context;
+import android.content.Intent;
 import android.content.res.Configuration;
 import android.graphics.Typeface;
 import android.os.Build;
@@ -18,10 +20,14 @@ import androidx.appcompat.widget.AppCompatTextView;
 import com.dctimer.APP;
 import com.dctimer.R;
 import com.dctimer.dialog.BattleRoundDetailDialog;
+import com.dctimer.model.BattleRepository;
+import com.dctimer.model.BattleRoomUiModel;
+import com.dctimer.model.MockBattleRepository;
 import com.dctimer.util.Utils;
 import com.dctimer.widget.CustomToolbar;
 
 import java.util.ArrayList;
+import java.util.List;
 
 import static com.dctimer.APP.screenOri;
 import static com.dctimer.APP.SCREEN_ORIENTATION;
@@ -29,6 +35,8 @@ import static com.dctimer.APP.timerFont;
 import static com.dctimer.APP.timerSize;
 
 public class BattleRoomActivity extends AppCompatActivity {
+    public static final String EXTRA_ROOM_ID = "battle_room_id";
+
     private TextView tvRoomName;
     private TextView tvRoomMode;
     private TextView tvRoomRound;
@@ -37,7 +45,15 @@ public class BattleRoomActivity extends AppCompatActivity {
     private TextView tvRoomStatus;
     private TextView tvRoomSummaryTimes;
     private LinearLayout llRoomSummary;
+    private final BattleRepository battleRepository = MockBattleRepository.getInstance();
+    private BattleRoomUiModel roomUiModel;
     private int uiMode;
+
+    public static Intent newIntent(Context context, String roomId) {
+        Intent intent = new Intent(context, BattleRoomActivity.class);
+        intent.putExtra(EXTRA_ROOM_ID, roomId);
+        return intent;
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -104,7 +120,7 @@ public class BattleRoomActivity extends AppCompatActivity {
             tvRoomScramble.setTypeface(Typeface.MONOSPACE);
         }
         
-        bindMockRoomData();
+        bindRoomUiModel();
 
         llRoomSummary.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -116,36 +132,35 @@ public class BattleRoomActivity extends AppCompatActivity {
         setRequestedOrientation(SCREEN_ORIENTATION[screenOri]);
     }
 
-    private void bindMockRoomData() {
-        tvRoomName.setText("MoYu POC");
-        tvRoomMode.setText("智能魔方");
-        tvRoomRound.setText("第 2 轮 · 已完成 2/3 · 全员完成后自动切换下一轮");
-        tvRoomScramble.setText("R U2 R' F2 U' R U R' U2 F2 R2 R2 R2 R2 R2 R2 R2");
-        tvRoomTimer.setText("8.41");
-        tvRoomStatus.setText("等待其他玩家完成 (2/3)");
-        tvRoomSummaryTimes.setText("点击查看当前轮次详情");
+    private void bindRoomUiModel() {
+        String roomId = getIntent() == null ? null : getIntent().getStringExtra(EXTRA_ROOM_ID);
+        roomUiModel = battleRepository.getRoomUiModel(roomId);
+        tvRoomName.setText(roomUiModel.getRoomName());
+        tvRoomMode.setText(roomUiModel.getRoomModeText());
+        tvRoomRound.setText(roomUiModel.getRoomRoundText());
+        tvRoomScramble.setText(roomUiModel.getScrambleText());
+        tvRoomTimer.setText(roomUiModel.getTimerText());
+        tvRoomStatus.setText(roomUiModel.getStatusText());
+        tvRoomSummaryTimes.setText(roomUiModel.getSummaryText());
     }
 
     private void showRoundDetail() {
         ArrayList<String> names = new ArrayList<>();
         ArrayList<String> results = new ArrayList<>();
         ArrayList<Integer> colors = new ArrayList<>();
-
-        names.add("会枝（你）");
-        results.add("8.41");
-        colors.add(APP.getTextColor());
-
-        names.add("CubeFox");
-        results.add("9.02");
-        colors.add(APP.getTextColor());
-
-        names.add("Nora");
-        results.add("计时中");
-        colors.add(0xff757575);
+        List<BattleRoomUiModel.RoundPlayerItem> players =
+                roomUiModel == null ? null : roomUiModel.getRoundPlayers();
+        if (players != null) {
+            for (BattleRoomUiModel.RoundPlayerItem player : players) {
+                names.add(player.getPlayerName());
+                results.add(player.getResultText());
+                colors.add(player.getResultColor());
+            }
+        }
 
         BattleRoundDetailDialog.newInstance(
-                "当前轮次详情",
-                "统一打乱，所有成员完成后自动切换下一轮。",
+                roomUiModel == null ? "" : roomUiModel.getDetailTitle(),
+                roomUiModel == null ? "" : roomUiModel.getDetailRule(),
                 names,
                 results,
                 colors
