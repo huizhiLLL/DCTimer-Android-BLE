@@ -97,6 +97,13 @@ public class BattleRoomActivity extends AppCompatActivity {
 
         tvRoomTimer.setTextSize(timerSize);
         applyTimerTypeface();
+        
+        // 应用全局打乱文字配置
+        tvRoomScramble.setTextSize(APP.scrambleSize);
+        if (APP.monoFont) {
+            tvRoomScramble.setTypeface(Typeface.MONOSPACE);
+        }
+        
         bindMockRoomData();
 
         llRoomSummary.setOnClickListener(new View.OnClickListener() {
@@ -113,7 +120,7 @@ public class BattleRoomActivity extends AppCompatActivity {
         tvRoomName.setText("MoYu POC");
         tvRoomMode.setText("智能魔方");
         tvRoomRound.setText("第 2 轮 · 已完成 2/3 · 全员完成后自动切换下一轮");
-        tvRoomScramble.setText("R U2 R' F2 U' R U R' U2 F2");
+        tvRoomScramble.setText("R U2 R' F2 U' R U R' U2 F2 R2 R2 R2 R2 R2 R2 R2");
         tvRoomTimer.setText("8.41");
         tvRoomStatus.setText("等待其他玩家完成 (2/3)");
         tvRoomSummaryTimes.setText("点击查看当前轮次详情");
