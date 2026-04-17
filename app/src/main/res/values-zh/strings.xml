@@ -151,6 +151,7 @@
     <string name="confirm_save">是否记录本次成绩？</string>
     <string name="confirm_overwrite">已存在该文件，是否覆盖？</string>
     <string name="smart_cube_reset_done">已重置为还原状态</string>
+    <string name="smart_cube_restore_first">请先复原魔方</string>
     <string name="delete_items">是否删除所有选中的分组</string>
     <string name="solve_none">无</string>
     <string name="cube2_face">底面</string>

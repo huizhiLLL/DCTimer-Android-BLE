@@ -153,6 +153,7 @@
     <string name="confirm_save">Save this time?</string>
     <string name="confirm_overwrite">File already exists. Overwrite?</string>
     <string name="smart_cube_reset_done">Cube reset to solved state</string>
+    <string name="smart_cube_restore_first">Please restore the cube first</string>
     <string name="delete_items">Delete selected items?</string>
     <string name="solve_none">None</string>
     <string name="cube2_face">Face</string>
