@@ -167,6 +167,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private boolean smartCubeCorrectionLocked;
     private long smartCubeLastRestoreHintTime;
     private boolean smartCubeSkipStartForCurrentMove;
+    private boolean pendingBleDialogAfterPermission;
+    private boolean pendingBleScanAfterPermission;
 
     private Stackmat stackmat;
     private BluetoothTools bluetoothTools;
@@ -853,12 +855,16 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (!areAllPermissionsGranted(grantResults)) {
+                clearPendingBlePermissionAction();
                 Toast.makeText(context, R.string.permission_deny, Toast.LENGTH_SHORT).show();
             } else if (requestCode == REQUEST_BLE_PERMISSION) {  //蓝牙
-                if (dialog != null && dialog.isShowing()) {
+                boolean openDialogAfterPermission = pendingBleDialogAfterPermission;
+                boolean startScanAfterPermission = pendingBleScanAfterPermission;
+                clearPendingBlePermissionAction();
+                if (openDialogAfterPermission) {
+                    continueBleScanFlow();
+                } else if (startScanAfterPermission && dialog != null && dialog.isShowing()) {
                     startBleScanInternal();
-                } else {
-                    openBleScanDialog();
                 }
             } else if (requestCode == 7) {  //Stackmat
                 startStackmat();
@@ -908,15 +914,27 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     }
 
     private boolean ensureBlePermissions() {
+        return ensureBlePermissions(false, false);
+    }
+
+    private boolean ensureBlePermissions(boolean openDialogAfterPermission, boolean startScanAfterPermission) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
             return true;
         }
         String[] blePermissions = getBlePermissions();
         if (blePermissions.length == 0 || hasPermissions(blePermissions)) {
+            clearPendingBlePermissionAction();
             return true;
         }
+        pendingBleDialogAfterPermission = openDialogAfterPermission;
+        pendingBleScanAfterPermission = startScanAfterPermission;
         ActivityCompat.requestPermissions(this, blePermissions, REQUEST_BLE_PERMISSION);
         return false;
+    }
+
+    private void clearPendingBlePermissionAction() {
+        pendingBleDialogAfterPermission = false;
+        pendingBleScanAfterPermission = false;
     }
 
     private boolean isLocationServiceEnabled() {
@@ -987,8 +1005,11 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 .setNegativeButton(R.string.btn_cancel, new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialogInterface, int i) {
+                        clearPendingBlePermissionAction();
                         handler.removeCallbacks(stopBleScanRunnable);
                         bluetoothTools.stopScan();
+                        bluetoothTools.disconnect();
+                        fallbackBleModeToTimer();
                     }
                 }).setCancelable(false).show();
         startBleScanInternal();
@@ -1011,11 +1032,15 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             showLocationServiceDisabledHint();
             return;
         }
-        if (!ensureBlePermissions()) {
+        if (!ensureBlePermissions(true, false)) {
             return;
         }
+        continueBleScanFlow();
+    }
+
+    private void continueBleScanFlow() {
         bluetoothTools.disconnect();
-        setTimerText("0" + (decimalMark == 0 ? "." : ",") + (timerAccuracy == 0 ? "00" : "000"));
+        setTimerText(getIdleTimerText());
         if (bluetoothTools.initBluetoothAdapter()) {
             openBleScanDialog();
         } else {
@@ -1531,19 +1556,31 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
+                fallbackBleModeToTimer();
                 if (adapter != null)
                     adapter.notifyDataSetChanged();
                 Toast.makeText(context, device.getName() + getString(R.string.cube_not_connected), Toast.LENGTH_SHORT).show();
-                if (isSmartTimerMode()) {
-                    setTimerColor(APP.getTextColor());
-                    setTimerText(getIdleTimerText());
-                    timer.setTimerState(DCTTimer.READY);
-                }
-                updateSmartCubeResetButton();
-                showScrambleView();
-                updateScrambleTextView();
             }
         });
+    }
+
+    private void fallbackBleModeToTimer() {
+        if (!isSmartCubeMode() && !isSmartTimerMode()) {
+            return;
+        }
+        enterTime = 0;
+        bleDeviceType = BLEDevice.TYPE_UNKNOWN;
+        if (stAdapter != null) {
+            stAdapter.setText(5, itemStr[0][enterTime]);
+        }
+        setPref("tiway", enterTime);
+        setTimerColor(APP.getTextColor());
+        setTimerText(getIdleTimerText());
+        timer.setTimerState(DCTTimer.READY);
+        tvMulPhase.setText("");
+        updateSmartCubeResetButton();
+        showScrambleView();
+        updateScrambleTextView();
     }
 
     public void moveCube(SmartCube cube, int move, int time) {
@@ -1872,7 +1909,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     resetSmartCubeToSolved();
                     break;
                 case R.id.btn_scan: //扫描设备
-                    if (ensureBlePermissions()) {
+                    if (ensureBlePermissions(false, true)) {
                         startBleScanInternal();
                     }
                     break;
