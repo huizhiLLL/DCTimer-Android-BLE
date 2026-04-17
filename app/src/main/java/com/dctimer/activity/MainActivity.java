@@ -25,7 +25,6 @@ import android.location.LocationManager;
 import android.net.Uri;
 import android.os.*;
 import android.provider.Settings;
-import android.speech.tts.TextToSpeech;
 import androidx.annotation.NonNull;
 import com.google.android.material.snackbar.Snackbar;
 import androidx.core.app.ActivityCompat;
@@ -154,7 +153,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private int gesture;
     private long exitTime = 0;
     //private List<String> nextScramble = new ArrayList<>();
-    private TextToSpeech tts;
+    private InspectionAlertPlayer inspectionAlertPlayer;
     private SensorManager sensorManager;
     private Sensor sensor;
     private double lastAcc;
@@ -416,14 +415,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
         resAdapter = new TimesAdapter(this, result);
         lvResult.setAdapter(resAdapter);
-        tts = new TextToSpeech(context, new TextToSpeech.OnInitListener() {
-            @Override
-            public void onInit(int i) {
-                if (i == TextToSpeech.SUCCESS) {
-                    //Log.w("tts", "tts init");
-                } else Log.e("dct", "tts失败");
-            }
-        });
+        inspectionAlertPlayer = new InspectionAlertPlayer(this);
         setScramble();
 
         tvTest = findViewById(R.id.tv_test);
@@ -472,6 +464,10 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     @Override
     protected void onDestroy() {
         Log.w("dct", "ondestroy");
+        if (inspectionAlertPlayer != null) {
+            inspectionAlertPlayer.release();
+            inspectionAlertPlayer = null;
+        }
         super.onDestroy();
     }
 
@@ -1555,26 +1551,45 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         cube.applyMove(move, time, currentScramble.getCubeState());
         updateSmartCubeScrambleProgress(cube, move);
         updateSmartCubeMoveUi(previousState, cube.getCubeState(), move);
-        if (timer.getTimerState() == DCTTimer.READY) {
+        if (timer.getTimerState() == DCTTimer.READY || timer.getTimerState() == DCTTimer.INSPECTING) {
             if (canStart) {
                 if (smartCubeSkipStartForCurrentMove) {
                     smartCubeSkipStartForCurrentMove = false;
                     return;
                 }
                 canStart = false;
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        tvMulPhase.setText("");
-                        timer.timeStart = SystemClock.uptimeMillis();
-                        timer.count();
-                        acquireWakeLock();
-                        setVisibility(false);
-                        //timer.setTimerState(Timer.RUNNING);
-                    }
-                });
+                startSmartCubeSolve();
             }
         }
+    }
+
+    private void startSmartCubeSolve() {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                tvMulPhase.setText("");
+                timer.timeStart = SystemClock.uptimeMillis();
+                penaltyTime = timer.getPenaltyTime();
+                isDNF = timer.isDNF();
+                timer.count();
+                acquireWakeLock();
+                setVisibility(false);
+            }
+        });
+    }
+
+    private void startSmartCubeInspection() {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                tvMulPhase.setText("");
+                timer.timeStart = SystemClock.uptimeMillis();
+                timer.count();
+                acquireWakeLock();
+                setVisibility(false);
+                refreshTimerPageSmartCubeUi();
+            }
+        });
     }
 
     public void markScrambled() {
@@ -1625,18 +1640,23 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             if (timer.getTimerState() != DCTTimer.RUNNING) {
                 cube.markScrambled();
                 timer.stopInspect();
-                timer.setTimerState(DCTTimer.READY);
                 canStart = true;
                 smartCubeSkipStartForCurrentMove = true;
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        setTimerColor(0xff00ff00);
-                        setTimerText(getString(R.string.ready));
-                        tvMulPhase.setText("");
-                        refreshTimerPageSmartCubeUi();
-                    }
-                });
+                if (wca && !currentScramble.isBlindfoldScramble()) {
+                    timer.setTimerState(DCTTimer.READY);
+                    startSmartCubeInspection();
+                } else {
+                    timer.setTimerState(DCTTimer.READY);
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            setTimerColor(0xff00ff00);
+                            setTimerText(getString(R.string.ready));
+                            tvMulPhase.setText("");
+                            refreshTimerPageSmartCubeUi();
+                        }
+                    });
+                }
             }
         }
 
@@ -3601,6 +3621,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         if (enterTime >= 2) {
             return;
         }
+        if (isSmartCubeMode() && isSmartCubeDeviceType(bleDeviceType) && timer.getTimerState() == DCTTimer.INSPECTING) {
+            return;
+        }
         if (enterTime == 1) {
             setTimerColor(0xff00ff00);
             return;
@@ -3767,6 +3790,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 setTimerColor(APP.getTextColor());
             }
         } else if (timer.getTimerState() == DCTTimer.INSPECTING) {
+            if (isSmartCubeMode() && isSmartCubeDeviceType(bleDeviceType)) {
+                return;
+            }
             if (freezeTime ==0 || canStart) {
                 //tvAssist.setText("");
                 timer.timeStart = SystemClock.uptimeMillis();
@@ -3812,8 +3838,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     }
 
     public void sayAlert(int id) {
-        //if (!inspectionAlert) return;
-        tts.speak(getString(id), TextToSpeech.QUEUE_FLUSH, null);
+        if (inspectionAlertPlayer != null) {
+            inspectionAlertPlayer.play(id);
+        }
     }
 
     public void save(final int time) {

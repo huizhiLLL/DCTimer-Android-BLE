@@ -76,10 +76,13 @@ public class DCTTimer {
             time = 0;
             if (timerState == READY && APP.wca && !dct.isBLDScramble()) {
                 timerState = INSPECTING;
+                inspectionState = 1;
+                inspectionTime = 0;
                 dct.setTimerColor(0xffff0000);
                 timerTask = new InspectTask();
                 eightSec = twelveSec = false;
                 mTimer.schedule(timerTask, 0, 200);
+                handler.sendEmptyMessage(0);
             } else {
                 if (APP.wca && timerTask != null) {
                     timerTask.cancel();
