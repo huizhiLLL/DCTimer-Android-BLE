@@ -161,7 +161,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private final List<String> smartCubeScrambleMoves = new ArrayList<>();
     private final List<String> smartCubeScrambleStates = new ArrayList<>();
     private int smartCubeScrambleProgress;
+    private String smartCubeScramblePendingMove;
     private int smartCubeCorrectionBaseProgress = -1;
+    private String smartCubeCorrectionBasePendingMove;
     private final List<String> smartCubeCorrectionMoves = new ArrayList<>();
     private final List<String> smartCubeDeviationMoves = new ArrayList<>();
     private boolean smartCubeCorrectionLocked;
@@ -192,6 +194,16 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             R.array.opt_average, R.array.opt_solve_333, R.array.opt_solve_222, R.array.opt_mega_scheme,
             R.array.opt_timer_font, R.array.opt_screen_ori, R.array.opt_vibrate, R.array.opt_vibrate_time,
             R.array.opt_sq_solver, R.array.opt_time_format, R.array.opt_average, R.array.opt_gesture, R.array.opt_decimal};
+
+    private static class SmartCubeSequenceProgress {
+        final int progress;
+        final String pendingMove;
+
+        SmartCubeSequenceProgress(int progress, String pendingMove) {
+            this.progress = progress;
+            this.pendingMove = pendingMove;
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -1088,6 +1100,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private void clearSmartCubeScrambleCache() {
         smartCubeScrambleCache = "";
         smartCubeScrambleProgress = 0;
+        smartCubeScramblePendingMove = null;
         smartCubeScrambleMoves.clear();
         smartCubeScrambleStates.clear();
         clearSmartCubeCorrectionSuggestion();
@@ -1095,6 +1108,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
     private void clearSmartCubeCorrectionSuggestion() {
         smartCubeCorrectionBaseProgress = -1;
+        smartCubeCorrectionBasePendingMove = null;
         smartCubeCorrectionMoves.clear();
         smartCubeDeviationMoves.clear();
         smartCubeCorrectionLocked = false;
@@ -1139,6 +1153,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         ensureSmartCubeScrambleCache();
         if (cube == null || smartCubeScrambleStates.isEmpty()) {
             smartCubeScrambleProgress = 0;
+            smartCubeScramblePendingMove = null;
             clearSmartCubeCorrectionSuggestion();
             return;
         }
@@ -1146,14 +1161,16 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         if (TextUtils.isEmpty(cubeState)) {
             return;
         }
-        int matchedProgress = findSequenceProgress(cubeState, SOLVED_FACELET, smartCubeScrambleMoves, smartCubeScrambleStates);
-        if (matchedProgress >= 0) {
-            smartCubeScrambleProgress = matchedProgress;
+        SmartCubeSequenceProgress progressInfo = resolveSequenceProgress(cubeState, SOLVED_FACELET, smartCubeScrambleMoves, smartCubeScrambleStates);
+        if (progressInfo != null) {
+            smartCubeScrambleProgress = progressInfo.progress;
+            smartCubeScramblePendingMove = progressInfo.pendingMove;
             clearSmartCubeCorrectionSuggestion();
             return;
         }
         if (Utils.isSolvedIgnoringRotation(cubeState) || SOLVED_FACELET.equals(cubeState)) {
             smartCubeScrambleProgress = 0;
+            smartCubeScramblePendingMove = null;
             clearSmartCubeCorrectionSuggestion();
             return;
         }
@@ -1190,6 +1207,10 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 appendDisplayMove(displayMoves, correctionFlags, move, true);
             }
             int resumeProgress = Math.max(0, smartCubeCorrectionBaseProgress);
+            if (!TextUtils.isEmpty(smartCubeCorrectionBasePendingMove)) {
+                appendDisplayMove(displayMoves, correctionFlags, smartCubeCorrectionBasePendingMove, false);
+                resumeProgress++;
+            }
             for (int i = resumeProgress; i < smartCubeScrambleMoves.size(); i++) {
                 appendDisplayMove(displayMoves, correctionFlags, smartCubeScrambleMoves.get(i), false);
             }
@@ -1213,13 +1234,23 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         }
         SpannableStringBuilder builder = new SpannableStringBuilder();
         int startIndex = Math.max(0, smartCubeScrambleProgress);
+        if (!TextUtils.isEmpty(smartCubeScramblePendingMove) && startIndex < smartCubeScrambleMoves.size()) {
+            if (builder.length() > 0) builder.append(' ');
+            int start = builder.length();
+            builder.append(smartCubeScramblePendingMove);
+            int end = builder.length();
+            int spanColor = nextColor;
+            builder.setSpan(new ForegroundColorSpan(spanColor), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            startIndex++;
+        }
         for (int i = startIndex; i < smartCubeScrambleMoves.size(); i++) {
             if (builder.length() > 0) builder.append(' ');
             int start = builder.length();
             builder.append(smartCubeScrambleMoves.get(i));
             int end = builder.length();
             int spanColor = baseColor;
-            if (i == smartCubeScrambleProgress && smartCubeScrambleProgress < smartCubeScrambleMoves.size()) {
+            if (i == smartCubeScrambleProgress && TextUtils.isEmpty(smartCubeScramblePendingMove)
+                    && smartCubeScrambleProgress < smartCubeScrambleMoves.size()) {
                 spanColor = nextColor;
             }
             builder.setSpan(new ForegroundColorSpan(spanColor), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
@@ -1234,6 +1265,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         }
         if (smartCubeCorrectionBaseProgress < 0) {
             smartCubeCorrectionBaseProgress = Math.max(0, smartCubeScrambleProgress);
+            smartCubeCorrectionBasePendingMove = smartCubeScramblePendingMove;
         }
         appendCombinedMove(smartCubeDeviationMoves, moveText);
         rebuildSmartCubeCorrectionMoves();
@@ -1253,6 +1285,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private void lockSmartCubeCorrection() {
         smartCubeCorrectionLocked = true;
         smartCubeCorrectionBaseProgress = -1;
+        smartCubeCorrectionBasePendingMove = null;
         smartCubeCorrectionMoves.clear();
         smartCubeDeviationMoves.clear();
     }
@@ -1266,17 +1299,17 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         Toast.makeText(context, R.string.smart_cube_restore_first, Toast.LENGTH_SHORT).show();
     }
 
-    private int findSequenceProgress(String cubeState, String startFacelet, List<String> moves, List<String> fullStates) {
+    private SmartCubeSequenceProgress resolveSequenceProgress(String cubeState, String startFacelet, List<String> moves, List<String> fullStates) {
         if (TextUtils.isEmpty(cubeState) || TextUtils.isEmpty(startFacelet)) {
-            return -1;
+            return null;
         }
         if (TextUtils.equals(cubeState, startFacelet)) {
-            return 0;
+            return new SmartCubeSequenceProgress(0, null);
         }
         for (int i = 0; i < moves.size(); i++) {
             String baseState = i == 0 ? startFacelet : fullStates.get(i - 1);
             if (TextUtils.equals(cubeState, baseState)) {
-                return i;
+                return new SmartCubeSequenceProgress(i, null);
             }
             int moveIndex = parseScrambleMove(moves.get(i));
             if (moveIndex < 0 || moveIndex % 3 != 1) {
@@ -1290,14 +1323,15 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             for (int pow : new int[] {0, 2}) {
                 String partialState = cs.min2phase.Util.toFaceCube(baseCube.move(axisStart + pow));
                 if (TextUtils.equals(cubeState, partialState)) {
-                    return i;
+                    String pendingMove = "URFDLB".charAt(moveIndex / 3) + getMoveSuffix(pow);
+                    return new SmartCubeSequenceProgress(i, pendingMove);
                 }
             }
         }
         if (!fullStates.isEmpty() && TextUtils.equals(cubeState, fullStates.get(fullStates.size() - 1))) {
-            return fullStates.size();
+            return new SmartCubeSequenceProgress(fullStates.size(), null);
         }
-        return -1;
+        return null;
     }
 
     private int parseScrambleMove(String move) {
