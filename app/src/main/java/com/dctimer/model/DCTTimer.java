@@ -64,11 +64,51 @@ public class DCTTimer {
 
     public void stopInspect() {
         if (timerState == INSPECTING) {
-            timerTask.cancel();
-            timerTask = null;
+            cancelTimerTask();
             dct.setTimerColor(APP.getTextColor());
         }
         timerState = READY;
+    }
+
+    public void startExternalRunning(long elapsedTime) {
+        cancelTimerTask();
+        inspectionState = 0;
+        time = Math.max(0L, elapsedTime);
+        timeStart = SystemClock.uptimeMillis() - time;
+        timerState = RUNNING;
+        dct.setTimerColor(APP.getTextColor());
+        timerTask = new ClockTask();
+        mTimer.schedule(timerTask, 0, 17);
+        handler.sendEmptyMessage(0);
+    }
+
+    public void startExternalInspection(long elapsedTime) {
+        cancelTimerTask();
+        time = Math.max(0L, elapsedTime);
+        timeStart = SystemClock.uptimeMillis() - time;
+        timerState = INSPECTING;
+        eightSec = time >= 7700;
+        twelveSec = time >= 11800;
+        updateInspectionState();
+        dct.setTimerColor(0xffff0000);
+        timerTask = new InspectTask();
+        mTimer.schedule(timerTask, 0, 200);
+        handler.sendEmptyMessage(0);
+    }
+
+    public void finishExternalRunning(long finalTime) {
+        cancelTimerTask();
+        inspectionState = 0;
+        timerState = STOP;
+        time = Math.max(0L, finalTime);
+        timeEnd = timeStart + time;
+    }
+
+    public void cancelExternalRunning() {
+        cancelTimerTask();
+        inspectionState = 0;
+        timerState = READY;
+        time = 0;
     }
 
     public void count() {
@@ -85,8 +125,7 @@ public class DCTTimer {
                 handler.sendEmptyMessage(0);
             } else {
                 if (APP.wca && timerTask != null) {
-                    timerTask.cancel();
-                    timerTask = null;
+                    cancelTimerTask();
                 }
                 timerState = RUNNING;
                 dct.setTimerColor(APP.getTextColor());
@@ -97,10 +136,7 @@ public class DCTTimer {
             timerState = STOP;
             time = timeEnd - timeStart;
             if (time < 100) time = 100;
-            if (timerTask != null) {
-                timerTask.cancel();
-                timerTask = null;
-            }
+            cancelTimerTask();
             new Thread(new Runnable() {
                 public void run() {
                     try {
@@ -132,12 +168,7 @@ public class DCTTimer {
                 twelveSec = true;
                 dct.sayAlert(R.string.twelve_sec);
             }
-            if (time < 15000) {
-                inspectionTime = (int) (time / 1000);
-                inspectionState = 1;
-            }
-            else if (time < 17000) inspectionState = 2;
-            else inspectionState = 3;
+            updateInspectionState();
             handler.sendEmptyMessage(0);
         }
     }
@@ -166,7 +197,10 @@ public class DCTTimer {
     @SuppressLint("HandlerLeak")
     class TimeHandler extends Handler {
         public void handleMessage(Message msg) {
-            if (msg.what == 1) dct.setTimerColor(0xff00ff00);
+            if (msg.what == 1) {
+                dct.showReadyTimerText();
+                dct.setTimerColor(0xff00ff00);
+            }
             else if (msg.what == 2) {
                 if (APP.enterTime == 0)
                     dct.setTimerText(StringUtils.timeToString((int) time));
@@ -189,6 +223,24 @@ public class DCTTimer {
             } else if (inspectionState == 3) {
                 if (APP.timerUpdate < 3) dct.setTimerText("DNF");
             }
+        }
+    }
+
+    private void cancelTimerTask() {
+        if (timerTask != null) {
+            timerTask.cancel();
+            timerTask = null;
+        }
+    }
+
+    private void updateInspectionState() {
+        if (time < 15000) {
+            inspectionTime = (int) (time / 1000);
+            inspectionState = 1;
+        } else if (time < 17000) {
+            inspectionState = 2;
+        } else {
+            inspectionState = 3;
         }
     }
 }

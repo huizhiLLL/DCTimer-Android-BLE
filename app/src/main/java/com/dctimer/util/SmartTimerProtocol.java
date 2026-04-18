@@ -22,6 +22,9 @@ public interface SmartTimerProtocol {
     interface StateCallback {
         void onTimerIdle(int time);
 
+        default void onTimerInspection(int time) {
+        }
+
         void onTimerReady(int time);
 
         void onTimerRunning(int time);

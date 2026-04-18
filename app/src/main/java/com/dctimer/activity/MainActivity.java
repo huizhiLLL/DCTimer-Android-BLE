@@ -144,6 +144,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     public int lastScrambleType = -64;
     private boolean isSwipe;
     private boolean touchDown;
+    private boolean readyHoldUiActive;
     private boolean scrambleGenerating = false;
     private int curTab;
     private int dip40;
@@ -1097,6 +1098,16 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         return "0" + (decimalMark == 0 ? "." : ",") + (timerAccuracy == 0 ? "00" : "000");
     }
 
+    public void showReadyTimerText() {
+        if (enterTime == 0) {
+            setTimerText(getIdleTimerText());
+        }
+    }
+
+    private boolean shouldUseSmartTimerInspection() {
+        return isSmartTimerMode() && wca && currentScramble != null && !currentScramble.isBlindfoldScramble();
+    }
+
     private void clearSmartCubeScrambleCache() {
         smartCubeScrambleCache = "";
         smartCubeScrambleProgress = 0;
@@ -1767,9 +1778,42 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     if (!isSmartTimerMode()) {
                         return;
                     }
+                    if (timer.getTimerState() == DCTTimer.RUNNING) {
+                        timer.cancelExternalRunning();
+                    } else if (timer.getTimerState() == DCTTimer.INSPECTING) {
+                        timer.stopInspect();
+                    }
                     setTimerColor(APP.getTextColor());
                     setTimerText(time > 0 ? StringUtils.timeToString(time) : getIdleTimerText());
                     timer.setTimerState(DCTTimer.READY);
+                    penaltyTime = 0;
+                    isDNF = false;
+                }
+            });
+        }
+
+        @Override
+        public void onTimerInspection(final int time) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (!isSmartTimerMode()) {
+                        return;
+                    }
+                    if (!shouldUseSmartTimerInspection()) {
+                        if (timer.getTimerState() == DCTTimer.INSPECTING) {
+                            timer.stopInspect();
+                        }
+                        setTimerColor(APP.getTextColor());
+                        setTimerText(getIdleTimerText());
+                        timer.setTimerState(DCTTimer.READY);
+                        return;
+                    }
+                    if (timer.getTimerState() != DCTTimer.INSPECTING) {
+                        timer.startExternalInspection(time);
+                    } else {
+                        setTimerColor(0xffff0000);
+                    }
                 }
             });
         }
@@ -1782,9 +1826,21 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     if (!isSmartTimerMode()) {
                         return;
                     }
+                    if (timer.getTimerState() == DCTTimer.RUNNING) {
+                        timer.cancelExternalRunning();
+                    }
+                    if (shouldUseSmartTimerInspection() && timer.getTimerState() == DCTTimer.INSPECTING) {
+                        setTimerColor(0xff00ff00);
+                        return;
+                    }
+                    if (timer.getTimerState() == DCTTimer.INSPECTING) {
+                        timer.stopInspect();
+                    }
                     setTimerColor(0xff00ff00);
-                    setTimerText(time > 0 ? StringUtils.timeToString(time) : getIdleTimerText());
+                    setTimerText(getIdleTimerText());
                     timer.setTimerState(DCTTimer.READY);
+                    penaltyTime = 0;
+                    isDNF = false;
                 }
             });
         }
@@ -1797,9 +1853,16 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     if (!isSmartTimerMode()) {
                         return;
                     }
-                    setTimerColor(APP.getTextColor());
-                    setTimerText(StringUtils.timeToString(time));
-                    timer.setTimerState(DCTTimer.RUNNING);
+                    if (shouldUseSmartTimerInspection() && timer.getTimerState() == DCTTimer.INSPECTING) {
+                        penaltyTime = timer.getPenaltyTime();
+                        isDNF = timer.isDNF();
+                    } else {
+                        penaltyTime = 0;
+                        isDNF = false;
+                    }
+                    if (timer.getTimerState() != DCTTimer.RUNNING) {
+                        timer.startExternalRunning(time);
+                    }
                 }
             });
         }
@@ -1818,7 +1881,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     setTimerColor(APP.getTextColor());
                     setTimerText(StringUtils.timeToString(time));
                     if (timer.getTimerState() == DCTTimer.RUNNING) {
-                        timer.setTimerState(DCTTimer.STOP);
+                        timer.finishExternalRunning(time);
                     } else {
                         timer.setTimerState(DCTTimer.READY);
                     }
@@ -1835,9 +1898,15 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     if (!isSmartTimerMode()) {
                         return;
                     }
+                    if (timer.getTimerState() == DCTTimer.INSPECTING) {
+                        timer.stopInspect();
+                    } else {
+                        timer.cancelExternalRunning();
+                    }
                     setTimerColor(APP.getTextColor());
                     setTimerText(getIdleTimerText());
-                    timer.setTimerState(DCTTimer.READY);
+                    penaltyTime = 0;
+                    isDNF = false;
                 }
             });
         }
@@ -2050,14 +2119,20 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                         break;
                     case MotionEvent.ACTION_UP:
                         v.performClick();
-                    case MotionEvent.ACTION_CANCEL:
                         touchUp();
+                        break;
+                    case MotionEvent.ACTION_CANCEL:
+                        setReadyHoldUi(false);
+                        canStart = false;
+                        timer.stopFreeze();
+                        setTimerColor(APP.getTextColor());
                         break;
                     case MotionEvent.ACTION_MOVE:
                         int x = (int) event.getX(), y = (int) event.getY();
                         if (timer.getTimerState() == DCTTimer.READY) {
                             int delX = Math.abs(x - startX), delY = Math.abs(y - startY);
                             if (delX > dip40 || delY > dip40) {
+                                setReadyHoldUi(false);
                                 setTimerColor(APP.getTextColor());
                                 isSwipe = true;
                                 if (freezeTime > 0)
@@ -2080,6 +2155,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                         break;
                     case MotionEvent.ACTION_OUTSIDE:
 //                  case MotionEvent.ACTION_CANCEL:
+                        setReadyHoldUi(false);
                         timer.stopFreeze();
                         setTimerColor(APP.getTextColor());
                         break;
@@ -2111,6 +2187,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                         }
                         break;
                     case MotionEvent.ACTION_CANCEL:
+                        setReadyHoldUi(false);
+                        canStart = false;
+                        touchDown = false;
                         timer.stopFreeze();
                         setTimerColor(APP.getTextColor());
                         break;
@@ -3286,6 +3365,35 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             btnCubeReset.setVisibility(v && shouldShowTimerPageCubeState() ? View.VISIBLE : View.GONE);
     }
 
+    private void setReadyHoldUi(boolean active) {
+        if (readyHoldUiActive == active) {
+            return;
+        }
+        readyHoldUiActive = active;
+        float alpha = active ? 0f : 1f;
+        tvScramble.setAlpha(alpha);
+        if (showStat) {
+            tvStat.setAlpha(alpha);
+        }
+        btnScramble.setAlpha(alpha);
+        btnLeft.setAlpha(alpha);
+        btnRight.setAlpha(alpha);
+        toolbar.setAlpha(alpha);
+        scrambleView.setAlpha(alpha);
+        if (btnCubeReset != null) {
+            btnCubeReset.setAlpha(alpha);
+        }
+        tvMulPhase.setAlpha(alpha);
+        if (tvTest != null) {
+            tvTest.setAlpha(alpha);
+        }
+        tvTimer.setTranslationY(active ? -toolbar.getHeight() / 2f : 0f);
+    }
+
+    private void clearReadyHoldUiState() {
+        setReadyHoldUi(false);
+    }
+
     public void setBackgroundColor() {
         int color = APP.getBackgroundColor();
         frame.setBackgroundColor(color);
@@ -3696,10 +3804,12 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             return;
         }
         if (enterTime == 1) {
+            setReadyHoldUi(false);
             setTimerColor(0xff00ff00);
             return;
         }
         if (timer.getTimerState() == DCTTimer.RUNNING) {
+            clearReadyHoldUiState();
             if (mpCount != 0) {
                 if (vibrateType == 1 || vibrateType == 3)
                     vibrator.vibrate(VIBRATE_TIME[vibrateTime]);
@@ -3729,9 +3839,14 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 //                setTimerColor(0xff00ff00);
 //            }
             if (freezeTime == 0 || (wca && !currentScramble.isBlindfoldScramble() && timer.getTimerState() == DCTTimer.READY)) {
+                showReadyTimerText();
                 setTimerColor(0xff00ff00);
                 canStart = true;
+                if (enterTime == 0 && timer.getTimerState() == DCTTimer.READY) {
+                    setReadyHoldUi(true);
+                }
             } else {
+                setReadyHoldUi(false);
                 if (timer.getTimerState()==0) {
                     if (multiPhase > 0) tvMulPhase.setText("");
                     setTimerColor(0xffff0000);
@@ -3832,11 +3947,13 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     }
                 }
             } else if (enterTime == 1) { //手动输入成绩
+                setReadyHoldUi(false);
                 tvTimer.setTextColor(APP.getTextColor());
                 inputTime();
             } else if (enterTime == 0) {
                 if (freezeTime ==0 || canStart) {    //可以开始计时
                     //Log.w("dct", "freeze=0 & canstart");
+                    clearReadyHoldUiState();
                     timer.timeStart = SystemClock.uptimeMillis();
                     if (vibrateType == 1 || vibrateType == 3)
                         vibrator.vibrate(VIBRATE_TIME[vibrateTime]);
@@ -3851,6 +3968,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     setVisibility(false);
                 } else {
                     //Log.w("dct", "other");
+                    setReadyHoldUi(false);
                     timer.stopFreeze();
                     setTimerColor(APP.getTextColor());
                 }

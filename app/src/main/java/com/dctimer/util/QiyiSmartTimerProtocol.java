@@ -401,7 +401,7 @@ public class QiyiSmartTimerProtocol implements SmartTimerProtocol {
             if (previousState != STATE_IDLE && state == STATE_IDLE) {
                 callback.onTimerIdle(solveTime);
             } else if (state == STATE_INSPECTION) {
-                callback.onTimerIdle(solveTime);
+                callback.onTimerInspection(solveTime);
             } else if (state == STATE_GET_SET) {
                 callback.onTimerReady(solveTime);
             } else if (state == STATE_RUNNING) {
