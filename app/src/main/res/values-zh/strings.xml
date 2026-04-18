@@ -99,6 +99,8 @@
     <string name="cube_not_connected">已断开</string>
     <string name="ble_not_supported">当前设备不支持蓝牙BLE</string>
     <string name="ble_device_not_supported">当前设备暂未适配对应蓝牙协议</string>
+    <string name="smart_timer_wca_disabled">蓝牙计时器模式不支持 WCA 观察</string>
+    <string name="smart_timer_wca_auto_disabled">已自动关闭 WCA 观察和观察提示</string>
     <string name="search_hint">搜索时间或注释</string>
     <string name="delete_fail">删除成绩失败</string>
     <string name="new_session_best">新单次最好：</string>

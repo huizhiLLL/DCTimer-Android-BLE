@@ -100,6 +100,8 @@
     <string name="cube_not_connected">" is not connected"</string>
     <string name="ble_not_supported">BLE not supported</string>
     <string name="ble_device_not_supported">This Bluetooth device is not supported yet</string>
+    <string name="smart_timer_wca_disabled">Bluetooth timer mode does not support WCA inspection</string>
+    <string name="smart_timer_wca_auto_disabled">WCA inspection and inspection alerts were turned off automatically</string>
     <string name="search_hint">Search time or comment</string>
     <string name="delete_fail">Delete result failed.</string>
     <string name="new_session_best">"New session best: "</string>

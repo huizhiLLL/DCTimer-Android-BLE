@@ -397,6 +397,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         rvSetting = findViewById(R.id.lv_settings);
         rvSetting.setLayoutManager(new LinearLayoutManager(context));
         rvSetting.setAdapter(stAdapter);
+        disableSmartTimerWcaSettings(false);
         //rvSetting.setOnItemClickListener(mOnItemListener);
 
         currentScramble = new Scrambler(sp);
@@ -1104,8 +1105,76 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         }
     }
 
-    private boolean shouldUseSmartTimerInspection() {
-        return isSmartTimerMode() && wca && currentScramble != null && !currentScramble.isBlindfoldScramble();
+    private void disableSmartTimerWcaSettings(boolean showToast) {
+        if (!isSmartTimerMode()) {
+            return;
+        }
+        if (wca) {
+            wca = false;
+            setPref("wca", false);
+        }
+        if (inspectionAlert) {
+            inspectionAlert = false;
+            setPref("wcainsp", false);
+        }
+        if (stAdapter != null) {
+            stAdapter.setCheck(1, false);
+            stAdapter.setCheck(2, false);
+        }
+        if (showToast) {
+            Toast.makeText(context, R.string.smart_timer_wca_disabled, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void applySmartTimerReadyLayout() {
+        if (!isSmartTimerMode()) {
+            return;
+        }
+        setVisibility(true);
+        setReadyHoldUi(true);
+        tvMulPhase.setText("");
+    }
+
+    private void applySmartTimerRunningLayout() {
+        if (!isSmartTimerMode()) {
+            return;
+        }
+        clearReadyHoldUiState();
+        setVisibility(false);
+    }
+
+    private void resetSmartTimerLayout() {
+        if (!isSmartTimerMode()) {
+            return;
+        }
+        clearReadyHoldUiState();
+        setVisibility(true);
+    }
+
+    private boolean shouldUseSmartCubeReadyLayout() {
+        return isSmartCubeMode()
+                && isSmartCubeDeviceType(bleDeviceType)
+                && timer.getTimerState() == DCTTimer.READY
+                && canStart;
+    }
+
+    private void applySmartCubeReadyLayout() {
+        if (!shouldUseSmartCubeReadyLayout()) {
+            return;
+        }
+        setVisibility(true);
+        setReadyHoldUi(true);
+        tvMulPhase.setText("");
+    }
+
+    private void resetSmartCubeReadyLayout() {
+        if (!isSmartCubeMode() || !isSmartCubeDeviceType(bleDeviceType)) {
+            return;
+        }
+        clearReadyHoldUiState();
+        if (timer.getTimerState() != DCTTimer.RUNNING && timer.getTimerState() != DCTTimer.INSPECTING) {
+            setVisibility(true);
+        }
     }
 
     private void clearSmartCubeScrambleCache() {
@@ -1515,6 +1584,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             @Override
             public void run() {
                 if (timer.getTimerState() == DCTTimer.RUNNING) {
+                    resetSmartCubeReadyLayout();
                     if (refreshCubeView && shouldShowTimerPageCubeState()) {
                         showScrambleView();
                     }
@@ -1526,6 +1596,11 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     showScrambleView();
                 }
                 updateSmartCubeResetButton();
+                if (shouldUseSmartCubeReadyLayout()) {
+                    applySmartCubeReadyLayout();
+                } else {
+                    resetSmartCubeReadyLayout();
+                }
             }
         });
     }
@@ -1649,6 +1724,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
+                resetSmartCubeReadyLayout();
                 tvMulPhase.setText("");
                 timer.timeStart = SystemClock.uptimeMillis();
                 penaltyTime = timer.getPenaltyTime();
@@ -1664,6 +1740,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
+                resetSmartCubeReadyLayout();
                 tvMulPhase.setText("");
                 timer.timeStart = SystemClock.uptimeMillis();
                 timer.count();
@@ -1675,8 +1752,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     }
 
     public void markScrambled() {
+        showReadyTimerText();
         setTimerColor(0xff00ff00);
-        setTimerText(getString(R.string.ready));
         tvMulPhase.setText("");
         timer.setTimerState(DCTTimer.READY);
         canStart = true;
@@ -1732,8 +1809,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
+                            showReadyTimerText();
                             setTimerColor(0xff00ff00);
-                            setTimerText(getString(R.string.ready));
                             tvMulPhase.setText("");
                             refreshTimerPageSmartCubeUi();
                         }
@@ -1778,41 +1855,22 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     if (!isSmartTimerMode()) {
                         return;
                     }
-                    if (timer.getTimerState() == DCTTimer.RUNNING) {
+                    int previousTimerState = timer.getTimerState();
+                    if (previousTimerState == DCTTimer.RUNNING) {
                         timer.cancelExternalRunning();
-                    } else if (timer.getTimerState() == DCTTimer.INSPECTING) {
-                        timer.stopInspect();
                     }
+                    resetSmartTimerLayout();
                     setTimerColor(APP.getTextColor());
-                    setTimerText(time > 0 ? StringUtils.timeToString(time) : getIdleTimerText());
+                    if (time > 0 && previousTimerState == DCTTimer.STOP) {
+                        setTimerText(StringUtils.timeToString(time));
+                    } else {
+                        setTimerText(getIdleTimerText());
+                    }
                     timer.setTimerState(DCTTimer.READY);
                     penaltyTime = 0;
                     isDNF = false;
-                }
-            });
-        }
-
-        @Override
-        public void onTimerInspection(final int time) {
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    if (!isSmartTimerMode()) {
-                        return;
-                    }
-                    if (!shouldUseSmartTimerInspection()) {
-                        if (timer.getTimerState() == DCTTimer.INSPECTING) {
-                            timer.stopInspect();
-                        }
-                        setTimerColor(APP.getTextColor());
-                        setTimerText(getIdleTimerText());
-                        timer.setTimerState(DCTTimer.READY);
-                        return;
-                    }
-                    if (timer.getTimerState() != DCTTimer.INSPECTING) {
-                        timer.startExternalInspection(time);
-                    } else {
-                        setTimerColor(0xffff0000);
+                    if (!screenOn) {
+                        releaseWakeLock();
                     }
                 }
             });
@@ -1829,13 +1887,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     if (timer.getTimerState() == DCTTimer.RUNNING) {
                         timer.cancelExternalRunning();
                     }
-                    if (shouldUseSmartTimerInspection() && timer.getTimerState() == DCTTimer.INSPECTING) {
-                        setTimerColor(0xff00ff00);
-                        return;
-                    }
-                    if (timer.getTimerState() == DCTTimer.INSPECTING) {
-                        timer.stopInspect();
-                    }
+                    applySmartTimerReadyLayout();
                     setTimerColor(0xff00ff00);
                     setTimerText(getIdleTimerText());
                     timer.setTimerState(DCTTimer.READY);
@@ -1853,15 +1905,12 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     if (!isSmartTimerMode()) {
                         return;
                     }
-                    if (shouldUseSmartTimerInspection() && timer.getTimerState() == DCTTimer.INSPECTING) {
-                        penaltyTime = timer.getPenaltyTime();
-                        isDNF = timer.isDNF();
-                    } else {
-                        penaltyTime = 0;
-                        isDNF = false;
-                    }
+                    penaltyTime = 0;
+                    isDNF = false;
                     if (timer.getTimerState() != DCTTimer.RUNNING) {
                         timer.startExternalRunning(time);
+                        acquireWakeLock();
+                        applySmartTimerRunningLayout();
                     }
                 }
             });
@@ -1878,6 +1927,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     if (timer.getTimerState() == DCTTimer.STOP) {
                         return;
                     }
+                    resetSmartTimerLayout();
                     setTimerColor(APP.getTextColor());
                     setTimerText(StringUtils.timeToString(time));
                     if (timer.getTimerState() == DCTTimer.RUNNING) {
@@ -1886,6 +1936,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                         timer.setTimerState(DCTTimer.READY);
                     }
                     save(time);
+                    if (!screenOn) {
+                        releaseWakeLock();
+                    }
                 }
             });
         }
@@ -1898,15 +1951,15 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     if (!isSmartTimerMode()) {
                         return;
                     }
-                    if (timer.getTimerState() == DCTTimer.INSPECTING) {
-                        timer.stopInspect();
-                    } else {
-                        timer.cancelExternalRunning();
-                    }
+                    timer.cancelExternalRunning();
+                    resetSmartTimerLayout();
                     setTimerColor(APP.getTextColor());
                     setTimerText(getIdleTimerText());
                     penaltyTime = 0;
                     isDNF = false;
+                    if (!screenOn) {
+                        releaseWakeLock();
+                    }
                 }
             });
         }
@@ -2202,11 +2255,19 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     public void setPref(final int position) {
         switch (position) {
             case 1: //WCA观察
+                if (isSmartTimerMode()) {
+                    disableSmartTimerWcaSettings(true);
+                    break;
+                }
                 wca = !wca;
                 stAdapter.setCheck(position, wca);
                 setPref("wca", wca);
                 break;
             case 2: //观察提示
+                if (isSmartTimerMode()) {
+                    disableSmartTimerWcaSettings(true);
+                    break;
+                }
                 inspectionAlert = !inspectionAlert;
                 stAdapter.setCheck(position, inspectionAlert);
                 setPref("wcainsp", inspectionAlert);
@@ -2276,6 +2337,11 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                             if (stackmat != null) {
                                 stackmat.stop();
                                 stackmat = null;
+                            }
+                            boolean wcaWasEnabled = wca || inspectionAlert;
+                            disableSmartTimerWcaSettings(false);
+                            if (wcaWasEnabled) {
+                                Toast.makeText(context, R.string.smart_timer_wca_auto_disabled, Toast.LENGTH_SHORT).show();
                             }
                             updateSmartCubeResetButton();
                             startBleScanFlow();

@@ -82,20 +82,6 @@ public class DCTTimer {
         handler.sendEmptyMessage(0);
     }
 
-    public void startExternalInspection(long elapsedTime) {
-        cancelTimerTask();
-        time = Math.max(0L, elapsedTime);
-        timeStart = SystemClock.uptimeMillis() - time;
-        timerState = INSPECTING;
-        eightSec = time >= 7700;
-        twelveSec = time >= 11800;
-        updateInspectionState();
-        dct.setTimerColor(0xffff0000);
-        timerTask = new InspectTask();
-        mTimer.schedule(timerTask, 0, 200);
-        handler.sendEmptyMessage(0);
-    }
-
     public void finishExternalRunning(long finalTime) {
         cancelTimerTask();
         inspectionState = 0;
