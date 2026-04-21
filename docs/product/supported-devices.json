@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "lastUpdated": "2026-04-21",
+  "categories": [
+    {
+      "id": "smart-cubes",
+      "name": "智能魔方",
+      "items": [
+        {
+          "id": "moyu32",
+          "name": "MoYu32",
+          "displayName": "魔域智能",
+          "notes": ""
+        },
+        {
+          "id": "qiyi-tornado-v4-smart",
+          "name": "Tornado V4 智能版",
+          "displayName": "QYSC / 风ai",
+          "notes": ""
+        },
+        {
+          "id": "gan-v2-v3-v4",
+          "name": "GAN v2 / v3 / v4",
+          "displayName": "GAN 智能",
+          "notes": "测试中 可能存在延迟问题"
+        }
+      ]
+    },
+    {
+      "id": "bluetooth-timers",
+      "name": "蓝牙计时器",
+      "items": [
+        {
+          "id": "qiyi-smart-timer",
+          "name": "QiYi Smart Timer",
+          "displayName": "奇艺智能计时器",
+          "notes": ""
+        }
+      ]
+    }
+  ]
+}

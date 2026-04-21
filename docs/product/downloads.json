@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "lastUpdated": "2026-04-21",
+  "items": [
+    {
+      "id": "android-apk-latest",
+      "platform": "Android",
+      "label": "Android APK 下载",
+      "version": "2.1 Beta",
+      "minAndroidVersion": "8.0",
+      "minAndroidApiLevel": 26,
+      "fileName": "DCTimer-BLE-v2.1 Beta.apk",
+      "url": "https://github.com/huizhiLLL/DCTimer-Android-BLE/release/latest",
+      "notes": "请在安装前确认设备系统版本满足要求，正式下载地址后续可替换为官网或 Release 链接。"
+    }
+  ]
+}
