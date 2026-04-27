@@ -175,9 +175,13 @@ public class Moyu32CubeProtocol implements SmartCubeProtocol {
             case 165:
                 handleMove(data);
                 break;
+            case 171:
+                break;
             default:
                 Log.w(TAG, "未知 MoYu32 消息类型: " + msgType);
-                tryFallbackCipher();
+                if (prevMoveCnt == -1) {
+                    tryFallbackCipher();
+                }
                 break;
         }
     }
