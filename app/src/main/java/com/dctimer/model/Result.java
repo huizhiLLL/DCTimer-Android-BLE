@@ -244,6 +244,10 @@ public class Result {
             String move = cube.getMoveSequence();
             if (!TextUtils.isEmpty(move))
             cv.put("moves", move);
+            String solveMeta = cube.getSolveMeta();
+            if (!TextUtils.isEmpty(solveMeta)) {
+                cv.put("solve_meta", solveMeta);
+            }
         }
         if (mp && multiPhase != null)
             for (int i = 0; i < 6; i++)
@@ -257,7 +261,9 @@ public class Result {
         checkExpand(num);
         SQLiteDatabase sqliteDb = db.getWritableDatabase();
         sqliteDb.beginTransaction();
-        SQLiteStatement stmt = sqliteDb.compileStatement("insert into " + db.getTableName(sessionId) + " values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        SQLiteStatement stmt = sqliteDb.compileStatement("insert into " + db.getTableName(sessionId)
+                + "(id, rest, resp, resd, scr, time, note, p1, p2, p3, p4, p5, p6, moves) "
+                + "values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         for (int i = 0; i < num; i++) {
             int time = (int) (Math.sqrt(v) * r.nextGaussian() + u);
             //penalty[length] = (byte) 0;

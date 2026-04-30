@@ -22,8 +22,11 @@ public class SmartCube implements Serializable {
     private int preIdx;
     private int result;
     private int moves;
+    private int reconstructedMoves;
     private List<Integer> preMoveList;
     private List<Integer> moveList;
+    private String solveStartState;
+    private SmartCubeSolveReconstruction reconstruction;
     private StateChangedCallback callback;
     private String targetState;
     private boolean scrambledNotified;
@@ -86,6 +89,14 @@ public class SmartCube implements Serializable {
         return moves;
     }
 
+    public int getReconstructedMovesCount() {
+        return reconstructedMoves;
+    }
+
+    public SmartCubeSolveReconstruction getReconstruction() {
+        return reconstruction;
+    }
+
     public void applyMove(int move, int time, String scramble) {
         rawData.add(move << 16 | time);
         cc = cc.move(move);
@@ -104,7 +115,17 @@ public class SmartCube implements Serializable {
 
     public void markScrambled() {
         preIdx = rawData.size();
+        solveStartState = cubeState;
         scrambledNotified = true;
+    }
+
+    public void markSolveStarted(String startState) {
+        if (rawData.isEmpty()) {
+            preIdx = 0;
+        } else {
+            preIdx = rawData.size() - 1;
+        }
+        solveStartState = startState;
     }
 
     public void markSolved() {
@@ -112,15 +133,25 @@ public class SmartCube implements Serializable {
         cc = new CubieCube();
         rawData = new ArrayList<>();
         preIdx = 0;
+        solveStartState = null;
         targetState = null;
         scrambledNotified = false;
+    }
+
+    public void clearLastReconstruction() {
+        reconstruction = null;
+        reconstructedMoves = 0;
     }
 
     public void calcResult() {
         result = 0;
         moves = rawData.size() - preIdx;
+        reconstructedMoves = 0;
+        reconstruction = null;
         preMoveList = new ArrayList<>();
         moveList = new ArrayList<>();
+        List<SmartCubeSolveReconstruction.MoveEvent> solveMoves = new ArrayList<>();
+        int elapsed = 0;
         for (int i = 0; i < preIdx; i++) {
             int move = rawData.get(i) >> 16;
             if (preMoveList.size() == 0) preMoveList.add(move);
@@ -134,10 +165,14 @@ public class SmartCube implements Serializable {
         }
         //Log.w("dct", "start "+preIdx+" size "+rawData.size());
         for (int i = preIdx; i < rawData.size(); i++) {
-            if (i != preIdx)
-                result += rawData.get(i) & 0xffff;
+            int delta = rawData.get(i) & 0xffff;
+            if (i != preIdx) {
+                result += delta;
+                elapsed += delta;
+            }
             //Log.w("dct", i+":"+rawData.get(i)+"/"+result);
             int move = rawData.get(i) >> 16;
+            solveMoves.add(new SmartCubeSolveReconstruction.MoveEvent(move, delta, elapsed));
             if (moveList.size() == 0) moveList.add(move);
             else if (moveList.get(moveList.size() - 1) == move) {
                 if (move % 3 == 1) moveList.add(move);
@@ -149,9 +184,14 @@ public class SmartCube implements Serializable {
         }
         if (type == BLEDevice.TYPE_GANI_CUBE)
             result = (int) (result / 0.95);
+        reconstruction = SmartCubeSolveReconstruction.fromRawMoves(solveStartState, solveMoves);
+        reconstructedMoves = reconstruction.getMoveCount();
     }
 
     public String getMoveSequence() {
+        if (reconstruction != null && reconstruction.getPrettySolve() != null && reconstruction.getPrettySolve().length() > 0) {
+            return reconstruction.getPrettySolve(result);
+        }
         StringBuilder sb = new StringBuilder();
         String[] suff = {"", "2", "'"};
         for (int i = 0; i < moveList.size(); i++) {
@@ -159,6 +199,13 @@ public class SmartCube implements Serializable {
             sb.append("URFDLB".charAt(move / 3)).append(suff[move % 3]).append(" ");
         }
         return sb.toString();
+    }
+
+    public String getSolveMeta() {
+        if (reconstruction == null) {
+            return null;
+        }
+        return reconstruction.toJson(result);
     }
 
     public interface StateChangedCallback {

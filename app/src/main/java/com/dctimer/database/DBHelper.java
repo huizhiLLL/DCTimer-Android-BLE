@@ -25,7 +25,7 @@ public class DBHelper extends SQLiteOpenHelper {
     public int sessionId;
 
     public DBHelper(Context c) {
-        super(c, DB_NAME, null, 7);
+        super(c, DB_NAME, null, 8);
     }
 
     @Override
@@ -35,12 +35,12 @@ public class DBHelper extends SQLiteOpenHelper {
             db.execSQL("create table " + TBL_NAME[i] + "(id integer not null, "
                     + "rest integer not null, resp integer not null, resd integer not null, "
                     + "scr text not null, time text, note text, "
-                    + "p1 integer, p2 integer, p3 integer, p4 integer, p5 integer, p6 integer, moves text);");
+                    + "p1 integer, p2 integer, p3 integer, p4 integer, p5 integer, p6 integer, moves text, solve_meta text);");
 
         db.execSQL("create table sessiontb(id integer not null, name text, type integer, mulp integer, ra integer, sorting integer);");
         db.execSQL("create table resultstb(id integer not null, sid integer not null, "
                 + "rest integer not null, resp integer not null, resd integer not null, scr text, time text, note text, "
-                + "p1 integer, p2 integer, p3 integer, p4 integer, p5 integer, p6 integer, moves text);");
+                + "p1 integer, p2 integer, p3 integer, p4 integer, p5 integer, p6 integer, moves text, solve_meta text);");
     }
 
     public Cursor querySession() {
@@ -276,6 +276,11 @@ public class DBHelper extends SQLiteOpenHelper {
         }
         if (oldVer < 7) {
             db.execSQL("alter table sessiontb add sorting integer");
+        }
+        if (oldVer < 8) {
+            for (int i = 0; i < TBL_NAME.length; i++) {
+                db.execSQL("alter table " + TBL_NAME[i] + " add solve_meta text");
+            }
         }
     }
 }

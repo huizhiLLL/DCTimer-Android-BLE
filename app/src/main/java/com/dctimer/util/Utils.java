@@ -877,6 +877,24 @@ public class Utils {
         return result;
     }
 
+    public static List<String> getAxisOrientationVariants(String facelets) {
+        List<String> result = new ArrayList<>();
+        if (facelets == null || facelets.length() < 54) {
+            return result;
+        }
+        Set<Character> seenDownCenters = new LinkedHashSet<>();
+        for (String variant : getOrientationVariants(facelets)) {
+            char downCenter = variant.charAt(31);
+            if (seenDownCenters.add(downCenter)) {
+                result.add(variant);
+            }
+            if (result.size() == 6) {
+                break;
+            }
+        }
+        return result;
+    }
+
     public static boolean isSameStateIgnoringRotation(String state, String target) {
         if (TextUtils.isEmpty(state) || TextUtils.isEmpty(target)) {
             return false;
