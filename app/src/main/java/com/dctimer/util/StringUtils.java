@@ -77,7 +77,7 @@ public class StringUtils {
     }
 
     public static int parseTime(String s) {
-        if (TextUtils.isEmpty(s)) return -1;
+        if (s == null || s.length() == 0) return -1;
         String[] arr = s.split(":");
         if (arr.length > 3) return -1;
         int hour = 0, min = 0;
@@ -97,6 +97,26 @@ public class StringUtils {
         } catch (Exception e) {
             return -1;
         }
+    }
+
+    public static int parseManualInputTime(String s) {
+        if (s == null) return -1;
+        String time = s.trim();
+        if (time.length() == 0) return -1;
+        if (time.matches("\\d+")) {
+            try {
+                long input = Long.parseLong(time);
+                long divisor = APP.timerAccuracy == 1 ? 1000 : 100;
+                long whole = input / divisor;
+                long fraction = input % divisor;
+                long seconds = whole < 100 ? whole : whole / 100 * 60 + whole % 100;
+                long value = seconds * 1000 + fraction * (1000 / divisor);
+                return value > Integer.MAX_VALUE ? -1 : (int) value;
+            } catch (NumberFormatException e) {
+                return -1;
+            }
+        }
+        return parseTime(time);
     }
 
     public static int getImageType(String scramble) {

@@ -4080,7 +4080,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             @Override
             public void onFinish(String time, int penalty) {
                 dialog.dismiss();
-                int value = StringUtils.parseTime(time);
+                int value = StringUtils.parseManualInputTime(time);
                 if (value <= 0) {
                     Toast.makeText(context, getString(R.string.invalid_input), Toast.LENGTH_SHORT).show();
                 } else {
