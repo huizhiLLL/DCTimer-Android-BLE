@@ -34,9 +34,6 @@ Thumbs.db
 # Local reference sources
 /ref/
 
-# Optional local agent instructions
-/AGENTS.md
-
 # BAT
 rel.bat
 
