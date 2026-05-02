@@ -359,6 +359,10 @@ public class QiyiCubeProtocol implements SmartCubeProtocol {
         if (crc16Modbus(msg, msg.length) != 0) {
             return;
         }
+        if ((msg[0] & 0xff) == 0xcc && (msg[1] & 0xff) == 0x10) {
+            handleQuaternionPacket(msg);
+            return;
+        }
         if ((msg[0] & 0xff) != 0xfe) {
             handleNonProtocolMessage(msg);
             return;
@@ -488,6 +492,34 @@ public class QiyiCubeProtocol implements SmartCubeProtocol {
         if (msg.length >= 7) {
             enqueueMessage(Arrays.copyOfRange(msg, 2, 7), false);
         }
+    }
+
+    private void handleQuaternionPacket(byte[] msg) {
+        float[] quaternion = parseQuaternionPacket(msg);
+        if (quaternion == null) {
+            return;
+        }
+        context.smartCubeGyro(smartCube, quaternion[0], quaternion[1], quaternion[2], quaternion[3]);
+    }
+
+    static float[] parseQuaternionPacket(byte[] msg) {
+        if (msg == null || msg.length < 16 || (msg[0] & 0xff) != 0xcc || (msg[1] & 0xff) != 0x10) {
+            return null;
+        }
+        int expectedCrc = crc16ModbusStatic(msg, 14);
+        int actualCrc = (msg[14] & 0xff) | ((msg[15] & 0xff) << 8);
+        if (expectedCrc != actualCrc) {
+            return null;
+        }
+        float qx = readInt16Static(msg, 6) / 1000f;
+        float qy = -readInt16Static(msg, 10) / 1000f;
+        float qz = readInt16Static(msg, 8) / 1000f;
+        float qw = readInt16Static(msg, 12) / 1000f;
+        float len = (float) Math.sqrt(qx * qx + qy * qy + qz * qz + qw * qw);
+        if (len <= 0f) {
+            return null;
+        }
+        return new float[] {qx / len, qy / len, qz / len, qw / len};
     }
 
     private boolean syncCubeState(String facelet) {
@@ -751,6 +783,15 @@ public class QiyiCubeProtocol implements SmartCubeProtocol {
     }
 
     private int crc16Modbus(byte[] data, int length) {
+        return crc16ModbusStatic(data, length);
+    }
+
+    private static int readInt16Static(byte[] data, int offset) {
+        int value = (data[offset] & 0xff) << 8 | (data[offset + 1] & 0xff);
+        return value >= 0x8000 ? value - 0x10000 : value;
+    }
+
+    private static int crc16ModbusStatic(byte[] data, int length) {
         int crc = 0xffff;
         for (int i = 0; i < length; i++) {
             crc ^= data[i] & 0xff;

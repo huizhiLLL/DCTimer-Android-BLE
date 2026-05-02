@@ -129,6 +129,7 @@
     <string name="btn_open">打開</string>
     <string name="btn_scan">掃描</string>
     <string name="btn_cube_reset">重置魔方</string>
+    <string name="btn_cube_gyro_calibrate">初始化視角</string>
     <string name="btn_refresh">刷新</string>
     <string name="btn_mark_solve">標記爲還原狀態</string>
     <string name="btn_mark_scramble">標記爲正確轉亂</string>
@@ -146,6 +147,10 @@
     <string name="time_dnf">本次成績：DNF</string>
     <string name="confirm_save">是否記錄本次成績？</string>
     <string name="confirm_overwrite">已存在該檔案，是否覆蓋？</string>
+    <string name="smart_cube_reset_done">已重置為還原狀態</string>
+    <string name="smart_cube_gyro_calibrated">已將目前姿態設為白頂綠前</string>
+    <string name="smart_cube_gyro_no_sample">尚未收到陀螺儀姿態</string>
+    <string name="smart_cube_restore_first">請先復原魔方</string>
     <string name="delete_items">是否刪除所選中的分組</string>
     <string name="solve_none">無</string>
     <string name="cube2_face">底面</string>

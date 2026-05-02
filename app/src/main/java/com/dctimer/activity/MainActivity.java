@@ -84,6 +84,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private ImageButton btnLeft;
     private ImageButton btnRight;
     private Button btnCubeReset;
+    private Button btnCubeGyroCalibrate;
     private TextView tvTimer;   //计时器
     private SmartCubeImageView scrambleView; //打乱图案
     private Bitmap bmScrambleView;
@@ -316,6 +317,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         btnRight.setOnClickListener(mOnClickListener);
         btnCubeReset = findViewById(R.id.bt_cube_reset);
         btnCubeReset.setOnClickListener(mOnClickListener);
+        btnCubeGyroCalibrate = findViewById(R.id.bt_cube_gyro_calibrate);
+        btnCubeGyroCalibrate.setOnClickListener(mOnClickListener);
         tvTimer = findViewById(R.id.tv_timer);
         tvTimer.setOnTouchListener(mOnTouchListener);
         scrambleView = findViewById(R.id.iv_scramble);
@@ -1573,6 +1576,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         if (btnCubeReset == null) return;
         boolean visible = shouldShowTimerPageCubeState() && timer.getTimerState() != DCTTimer.RUNNING;
         btnCubeReset.setVisibility(visible ? View.VISIBLE : View.GONE);
+        if (btnCubeGyroCalibrate != null) {
+            btnCubeGyroCalibrate.setVisibility(visible ? View.VISIBLE : View.GONE);
+        }
     }
 
     private void refreshTimerPageSmartCubeUi() {
@@ -1627,6 +1633,17 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         smartCubeScrambleProgress = 0;
         refreshTimerPageSmartCubeUi();
         Toast.makeText(context, R.string.smart_cube_reset_done, Toast.LENGTH_SHORT).show();
+    }
+
+    public void calibrateSmartCubeGyro() {
+        SmartCube cube = getActiveSmartCube();
+        if (cube == null) {
+            return;
+        }
+        boolean calibrated = cube.setGyroBaseToLatest();
+        Toast.makeText(context,
+                calibrated ? R.string.smart_cube_gyro_calibrated : R.string.smart_cube_gyro_no_sample,
+                Toast.LENGTH_SHORT).show();
     }
 
     public void disconnectSmartCube() {
@@ -1716,10 +1733,17 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     return;
                 }
                 canStart = false;
-                cube.markSolveStarted(previousState);
+                cube.markSolveStarted(previousState, SystemClock.uptimeMillis());
                 startSmartCubeSolve();
             }
         }
+    }
+
+    public void smartCubeGyro(SmartCube cube, float qx, float qy, float qz, float qw) {
+        if (cube == null) {
+            return;
+        }
+        cube.applyGyro(qx, qy, qz, qw, SystemClock.uptimeMillis());
     }
 
     private void startSmartCubeSolve() {
@@ -2066,6 +2090,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     break;
                 case R.id.bt_cube_reset:
                     resetSmartCubeToSolved();
+                    break;
+                case R.id.bt_cube_gyro_calibrate:
+                    calibrateSmartCubeGyro();
                     break;
                 case R.id.btn_scan: //扫描设备
                     if (ensureBlePermissions(false, true)) {
@@ -3432,6 +3459,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         else scrambleView.setVisibility(View.GONE);
         if (btnCubeReset != null)
             btnCubeReset.setVisibility(v && shouldShowTimerPageCubeState() ? View.VISIBLE : View.GONE);
+        if (btnCubeGyroCalibrate != null)
+            btnCubeGyroCalibrate.setVisibility(v && shouldShowTimerPageCubeState() ? View.VISIBLE : View.GONE);
     }
 
     private void setReadyHoldUi(boolean active) {
@@ -3451,6 +3480,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         scrambleView.setAlpha(alpha);
         if (btnCubeReset != null) {
             btnCubeReset.setAlpha(alpha);
+        }
+        if (btnCubeGyroCalibrate != null) {
+            btnCubeGyroCalibrate.setAlpha(alpha);
         }
         tvMulPhase.setAlpha(alpha);
         if (tvTest != null) {
@@ -3608,6 +3640,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         tvStat.setTextColor(color);
         btnScramble.setTextColor(color);
         btnCubeReset.setTextColor(color);
+        if (btnCubeGyroCalibrate != null) {
+            btnCubeGyroCalibrate.setTextColor(color);
+        }
         //toolbar.setTitleTextColor(colors[1]);
     }
 

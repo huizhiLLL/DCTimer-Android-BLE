@@ -1,7 +1,5 @@
 package com.dctimer.model;
 
-import android.util.Log;
-
 import com.dctimer.util.Utils;
 
 import java.io.Serializable;
@@ -26,6 +24,10 @@ public class SmartCube implements Serializable {
     private List<Integer> preMoveList;
     private List<Integer> moveList;
     private String solveStartState;
+    private long solveStartUptimeMs;
+    private List<GyroSample> gyroSamples;
+    private GyroSample latestGyroSample;
+    private GyroSample gyroBaseSample;
     private SmartCubeSolveReconstruction reconstruction;
     private StateChangedCallback callback;
     private String targetState;
@@ -33,6 +35,7 @@ public class SmartCube implements Serializable {
 
     public SmartCube() {
         rawData = new ArrayList<>();
+        gyroSamples = new ArrayList<>();
         cc = new CubieCube();
     }
 
@@ -113,27 +116,50 @@ public class SmartCube implements Serializable {
             callback.onSolved(this);
     }
 
+    public void applyGyro(float qx, float qy, float qz, float qw, long localUptimeMs) {
+        latestGyroSample = new GyroSample(qx, qy, qz, qw, localUptimeMs);
+        gyroSamples.add(latestGyroSample);
+    }
+
+    public boolean setGyroBaseToLatest() {
+        if (latestGyroSample == null) {
+            return false;
+        }
+        gyroBaseSample = latestGyroSample;
+        gyroSamples = new ArrayList<>();
+        gyroSamples.add(latestGyroSample);
+        return true;
+    }
+
     public void markScrambled() {
         preIdx = rawData.size();
         solveStartState = cubeState;
+        solveStartUptimeMs = 0L;
         scrambledNotified = true;
     }
 
     public void markSolveStarted(String startState) {
+        markSolveStarted(startState, 0L);
+    }
+
+    public void markSolveStarted(String startState, long localUptimeMs) {
         if (rawData.isEmpty()) {
             preIdx = 0;
         } else {
             preIdx = rawData.size() - 1;
         }
         solveStartState = startState;
+        solveStartUptimeMs = localUptimeMs;
     }
 
     public void markSolved() {
         cubeState = "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB";
         cc = new CubieCube();
         rawData = new ArrayList<>();
+        gyroSamples = new ArrayList<>();
         preIdx = 0;
         solveStartState = null;
+        solveStartUptimeMs = 0L;
         targetState = null;
         scrambledNotified = false;
     }
@@ -151,6 +177,7 @@ public class SmartCube implements Serializable {
         preMoveList = new ArrayList<>();
         moveList = new ArrayList<>();
         List<SmartCubeSolveReconstruction.MoveEvent> solveMoves = new ArrayList<>();
+        List<SmartCubeSolveReconstruction.GyroEvent> solveGyros = new ArrayList<>();
         int elapsed = 0;
         for (int i = 0; i < preIdx; i++) {
             int move = rawData.get(i) >> 16;
@@ -184,8 +211,75 @@ public class SmartCube implements Serializable {
         }
         if (type == BLEDevice.TYPE_GANI_CUBE)
             result = (int) (result / 0.95);
-        reconstruction = SmartCubeSolveReconstruction.fromRawMoves(solveStartState, solveMoves);
+        if (solveStartUptimeMs > 0 && gyroBaseSample != null) {
+            GyroSample startSample = null;
+            for (GyroSample sample : gyroSamples) {
+                if (sample.localUptimeMs <= solveStartUptimeMs
+                        && (startSample == null || sample.localUptimeMs > startSample.localUptimeMs)) {
+                    startSample = sample;
+                }
+            }
+            if (startSample != null) {
+                GyroSample relative = relativeGyro(gyroBaseSample, startSample, 0);
+                if (relative != null) {
+                    solveGyros.add(new SmartCubeSolveReconstruction.GyroEvent(
+                            relative.qx, relative.qy, relative.qz, relative.qw, 0));
+                }
+            }
+            for (GyroSample sample : gyroSamples) {
+                if (sample.localUptimeMs < solveStartUptimeMs) {
+                    continue;
+                }
+                if (sample == startSample) {
+                    continue;
+                }
+                long elapsedMs = sample.localUptimeMs - solveStartUptimeMs;
+                if (elapsedMs > Integer.MAX_VALUE) {
+                    continue;
+                }
+                GyroSample relative = relativeGyro(gyroBaseSample, sample, (int) elapsedMs);
+                if (relative != null) {
+                    solveGyros.add(new SmartCubeSolveReconstruction.GyroEvent(
+                            relative.qx, relative.qy, relative.qz, relative.qw, (int) elapsedMs));
+                }
+            }
+        }
+        reconstruction = SmartCubeSolveReconstruction.fromRawMoves(solveStartState, solveMoves, solveGyros);
         reconstructedMoves = reconstruction.getMoveCount();
+    }
+
+    private static GyroSample relativeGyro(GyroSample base, GyroSample sample, int elapsedMs) {
+        double baseLen = norm(base);
+        double sampleLen = norm(sample);
+        if (baseLen <= 0 || sampleLen <= 0) {
+            return null;
+        }
+        double bx = base.qx / baseLen;
+        double by = base.qy / baseLen;
+        double bz = base.qz / baseLen;
+        double bw = base.qw / baseLen;
+        double sx = sample.qx / sampleLen;
+        double sy = sample.qy / sampleLen;
+        double sz = sample.qz / sampleLen;
+        double sw = sample.qw / sampleLen;
+        double x = bw * sx - bx * sw - by * sz + bz * sy;
+        double y = bw * sy + bx * sz - by * sw - bz * sx;
+        double z = bw * sz - bx * sy + by * sx - bz * sw;
+        double w = bw * sw + bx * sx + by * sy + bz * sz;
+        double len = Math.sqrt(x * x + y * y + z * z + w * w);
+        if (len <= 0) {
+            return null;
+        }
+        return new GyroSample((float) (x / len), (float) (y / len),
+                (float) (z / len), (float) (w / len), elapsedMs);
+    }
+
+    private static double norm(GyroSample sample) {
+        if (sample == null) {
+            return 0;
+        }
+        return Math.sqrt(sample.qx * sample.qx + sample.qy * sample.qy
+                + sample.qz * sample.qz + sample.qw * sample.qw);
     }
 
     public String getMoveSequence() {
@@ -211,5 +305,21 @@ public class SmartCube implements Serializable {
     public interface StateChangedCallback {
         void onScrambled(SmartCube cube);
         void onSolved(SmartCube cube);
+    }
+
+    private static class GyroSample implements Serializable {
+        final float qx;
+        final float qy;
+        final float qz;
+        final float qw;
+        final long localUptimeMs;
+
+        GyroSample(float qx, float qy, float qz, float qw, long localUptimeMs) {
+            this.qx = qx;
+            this.qy = qy;
+            this.qz = qz;
+            this.qw = qw;
+            this.localUptimeMs = localUptimeMs;
+        }
     }
 }
