@@ -8,6 +8,7 @@ import static com.dctimer.util.StringUtils.timeToString;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Locale;
 
 import com.dctimer.APP;
@@ -16,6 +17,8 @@ import com.dctimer.model.Result;
 public class Stats {
     public int[] avg1 = new int[24];
     public int[] avg2 = new int[24];
+    public boolean[] bestTimeRecord = new boolean[24];
+    public boolean[][] bestAvgRecord = {new boolean[24], new boolean[24]};
     public int[] bestAvg = {0, 0};
     public int[] bestAvgIdx = {-1, -1};
     public int mean = -1;
@@ -36,6 +39,11 @@ public class Stats {
         if (avg1.length <= result.length()) {
             avg1 = new int[result.length() * 3 / 2];
             avg2 = new int[result.length() * 3 / 2];
+            bestAvgRecord[0] = new boolean[result.length() * 3 / 2];
+            bestAvgRecord[1] = new boolean[result.length() * 3 / 2];
+        } else {
+            Arrays.fill(bestAvgRecord[0], 0, result.length(), false);
+            Arrays.fill(bestAvgRecord[1], 0, result.length(), false);
         }
         bestAvg[0] = bestAvg[1] = Integer.MAX_VALUE;
         bestAvgIdx[0] = bestAvgIdx[1] = -1;
@@ -67,6 +75,9 @@ public class Stats {
         int mean = (int) (sum / n + 0.5);
         if (timerAccuracy == 0) mean *= 10;
         //if (i == n - 1) { bestAvg[midx] = mean; bestAvgIdx[midx] = i; }
+        if (midx >= 0 && mean < bestAvg[midx]) {
+            bestAvgRecord[midx][i] = true;
+        }
         if (midx >= 0 && mean <= bestAvg[midx]) {
             bestAvg[midx] = mean;
             bestAvgIdx[midx] = i;
@@ -143,6 +154,9 @@ public class Stats {
             avg = (int) (sum / (n - 2 * trim) + 0.5);
         }
         if (timerAccuracy == 0) avg *= 10;
+        if (midx >= 0 && avg < bestAvg[midx]) {
+            bestAvgRecord[midx][i] = true;
+        }
         if (midx >= 0 && avg <= bestAvg[midx]) {
             bestAvg[midx] = avg;
             bestAvgIdx[midx] = i;
@@ -155,10 +169,20 @@ public class Stats {
         maxIdx = minIdx = mean = -1;
         solved = result.length();
         if (solved == 0) return "0/0): N/A (N/A)";
+        if (bestTimeRecord.length <= result.length()) {
+            bestTimeRecord = new boolean[result.length() * 3 / 2];
+        } else {
+            Arrays.fill(bestTimeRecord, 0, result.length(), false);
+        }
+        int bestTime = Integer.MAX_VALUE;
         for (int i = 0; i < result.length(); i++) {
             if (result.isDnf(i)) solved--;
             else {
                 int time = result.getTime(i);
+                if (time < bestTime) {
+                    bestTime = time;
+                    bestTimeRecord[i] = true;
+                }
                 if (maxIdx == -1) maxIdx = i;
                 else if (time > result.getTime(maxIdx)) maxIdx = i;
                 if (minIdx == -1) minIdx = i;
@@ -322,6 +346,10 @@ public class Stats {
             sortIdx = new int[len * 3 / 2];
         }
         for (int i = 0; i < len; i++) sortIdx[i] = i;
+        if (sortType < 0) {
+            sortPbRecords(-sortType - 1, len);
+            return;
+        }
         int type = (sortType - 1) / 2;
         if (type == 0) quickSort(result.getResult(), true, 0, len - 1);
         else if (type == 1) quickSort(avg1, false, 0, len - 1);
@@ -333,6 +361,38 @@ public class Stats {
             }
             sortIdx = s;
         }
+    }
+
+    private void sortPbRecords(final int type, int len) {
+        Integer[] idx = new Integer[len];
+        for (int i = 0; i < len; i++) idx[i] = i;
+        Arrays.sort(idx, new Comparator<Integer>() {
+            @Override
+            public int compare(Integer left, Integer right) {
+                boolean leftPb = isPbRecord(type, left);
+                boolean rightPb = isPbRecord(type, right);
+                if (leftPb != rightPb) return leftPb ? -1 : 1;
+                if (leftPb) {
+                    int diff = getSortValue(type, left) - getSortValue(type, right);
+                    if (diff != 0) return diff;
+                }
+                return left - right;
+            }
+        });
+        for (int i = 0; i < len; i++) sortIdx[i] = idx[i];
+    }
+
+    private boolean isPbRecord(int type, int idx) {
+        if (type == 0) return idx < bestTimeRecord.length && bestTimeRecord[idx];
+        int avgType = type - 1;
+        return avgType >= 0 && avgType < bestAvgRecord.length
+                && idx < bestAvgRecord[avgType].length && bestAvgRecord[avgType][idx];
+    }
+
+    private int getSortValue(int type, int idx) {
+        if (type == 0) return result.getTime(idx);
+        if (type == 1) return avg1[idx];
+        return avg2[idx];
     }
 
     private void quickSort(int[] arr, boolean penalty, int low, int high) {

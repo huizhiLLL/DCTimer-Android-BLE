@@ -111,7 +111,7 @@ public class TimesAdapter extends BaseAdapter {
             else holder.textView.setTextColor(dct.getResources().getColor(R.color.colorText));
             //单次成绩
             holder.button[0].setText(result.getTimeAt(pos, false));
-            if (pos == result.getMinIdx()) //单次最快
+            if (result.isSessionBestRecord(pos)) //单次 PB 纪录点
                 holder.button[0].setTextColor(APP.colors[2]);
             else if (pos == result.getMaxIdx())    //单次最慢
                 holder.button[0].setTextColor(APP.colors[3]);
@@ -143,11 +143,11 @@ public class TimesAdapter extends BaseAdapter {
                         holder.button[i].setBackgroundResource(R.drawable.item_background);
                         if (i == 1) {
                             holder.button[i].setText(StringUtils.timeToString(result.getAvg1(pos)));
-                            if (pos == result.getBestAvgIdx(0)) holder.button[i].setTextColor(APP.colors[4]);
+                            if (result.isAvgBestRecord(0, pos)) holder.button[i].setTextColor(APP.colors[4]);
                             else holder.button[i].setTextColor(dct.getResources().getColor(R.color.colorText));
                         } else if (i == 2) {
                             holder.button[i].setText(StringUtils.timeToString(result.getAvg2(pos)));
-                            if (pos == result.getBestAvgIdx(1)) holder.button[i].setTextColor(APP.colors[4]);
+                            if (result.isAvgBestRecord(1, pos)) holder.button[i].setTextColor(APP.colors[4]);
                             else holder.button[i].setTextColor(dct.getResources().getColor(R.color.colorText));
                         }
                     }

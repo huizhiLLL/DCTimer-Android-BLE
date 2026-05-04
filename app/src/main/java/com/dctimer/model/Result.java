@@ -342,6 +342,8 @@ public class Result {
         length = 0;
         mod = true;
         stats.maxIdx = stats.minIdx = -1;
+        stats.bestTimeRecord = new boolean[24];
+        stats.bestAvgRecord = new boolean[][] {new boolean[24], new boolean[24]};
         stats.mpMean = new int[6];
     }
 
@@ -413,7 +415,11 @@ public class Result {
 
     public boolean isSessionBest() {
         if (length < 2) return false;
-        return getMinIdx() == length - 1;
+        return isSessionBestRecord(length - 1);
+    }
+
+    public boolean isSessionBestRecord(int i) {
+        return i >= 0 && i < length && i < stats.bestTimeRecord.length && stats.bestTimeRecord[i];
     }
 
     public int getMaxIdx() {
@@ -488,7 +494,13 @@ public class Result {
 
     public boolean isAvgBest(int i) {
         if (length == 0) return false;
-        return stats.bestAvgIdx[i] == length - 1;
+        return isAvgBestRecord(i, length - 1);
+    }
+
+    public boolean isAvgBestRecord(int type, int i) {
+        return type >= 0 && type < stats.bestAvgRecord.length
+                && i >= 0 && i < length && i < stats.bestAvgRecord[type].length
+                && stats.bestAvgRecord[type][i];
     }
 
     public int getMpMinIdx(int idx) {

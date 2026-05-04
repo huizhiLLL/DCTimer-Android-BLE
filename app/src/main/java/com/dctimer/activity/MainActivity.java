@@ -670,6 +670,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                         if (sortType != 0) {
                             result.sortResult();
                         }
+                        setResultTitle();
                         resAdapter.setHighlight(-1);
                         lvResult.setSelection(0);
                     }
@@ -2483,7 +2484,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                         if (multiPhase == 0) {
                             setResultTitle();
                             if (result.length() > 0) {
-                                if (sortType == 3 || sortType == 4)
+                                if (sortType == 3 || sortType == 4 || sortType == -2)
                                     result.sortResult();
                                 resAdapter.notifyDataSetChanged();
                             }
@@ -2509,7 +2510,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                         if (multiPhase == 0) {
                             setResultTitle();
                             if (result.length() > 0) {
-                                if (sortType == 5 || sortType == 6)
+                                if (sortType == 5 || sortType == 6 || sortType == -3)
                                     result.sortResult();
                                 resAdapter.notifyDataSetChanged();
                             }
@@ -2553,7 +2554,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                                 }
                                 if (multiPhase == 0) {
                                     setResultTitle();
-                                    if (sortType > 2)
+                                    if (sortType > 2 || sortType < -1)
                                         result.sortResult();
                                     resAdapter.notifyDataSetChanged();
                                 }
@@ -3852,6 +3853,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             result.calcMpMean();
         }
         sortType = 0;
+        setResultTitle();
         resAdapter.reload();
         btnSessionMean.setText(getString(R.string.session_mean, result.getSessionMean()));
         lvResult.setSelection(0);
@@ -4307,6 +4309,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         result.clear();
         btnSessionMean.setText(getString(R.string.session_mean) + "0/0): N/A (N/A)");
         sortType = 0;
+        setResultTitle();
         resAdapter.setLength(0);
         setStatsLabel();
         if (sessionManager.getPuzzle(sessionIdx) != 32) {
@@ -4337,19 +4340,42 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     (avg1Type ==0 ? "AO" : "MO") + avg1len,
                     (avg2Type ==0 ? "AO" : "MO") + avg2len};
         }
-        for (String text : title) {
+        for (int i = 0; i < title.length; i++) {
+            String text = title[i];
             //View v = new View(context);
             //v.setLayoutParams(new LinearLayout.LayoutParams(1, -1));
             //v.setBackgroundColor(0xddb2b2b2);
             //llTitle.addView(v);
             TextView tv = new TextView(context);
             tv.setLayoutParams(new LinearLayout.LayoutParams(0, -1, 1));
-            tv.setTextColor(getResources().getColor(R.color.colorText));
+            if (sortType == -(i + 1)) tv.setTextColor(APP.colors[4]);
+            else tv.setTextColor(getResources().getColor(R.color.colorText));
             tv.setGravity(Gravity.CENTER);
             tv.setText(text);
             tv.setTextSize(16);
+            if (multiPhase == 0) {
+                final int column = i + 1;
+                tv.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        togglePbSort(column);
+                    }
+                });
+            }
             llTitle.addView(tv);
         }
+    }
+
+    private void togglePbSort(int column) {
+        llSearch.setVisibility(View.GONE);
+        llSession.setVisibility(View.VISIBLE);
+        Utils.hideKeyboard(editSearch);
+        sortType = sortType == -column ? 0 : -column;
+        if (sortType != 0) result.sortResult();
+        setResultTitle();
+        resAdapter.setHighlight(-1);
+        resAdapter.reload();
+        lvResult.setSelection(0);
     }
 
     //屏幕常亮
