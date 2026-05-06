@@ -1,13 +1,9 @@
+<h4 align="right">English | <strong><a href="README.md">简体中文</a></strong></h4>
+
 <div align="center">
   <img src=".github/assets/dctimer-logo.png" alt="DCTimer-Android-BLE logo" width="128" height="128" />
 
   <h1>DCTimer-Android-BLE</h1>
-
-  <p>
-    <a href="README.md">中文</a>
-    ·
-    <strong>English</strong>
-  </p>
 
   <p>
     An Android Bluetooth hardware timer based on DCTimer-Android, focused on smart cubes and QiYi Smart Timer support.
@@ -19,6 +15,8 @@
     <img alt="Gradle" src="https://img.shields.io/badge/Gradle-8.11.1-02303A?style=for-the-badge&logo=gradle&logoColor=white" />
   </p>
 </div>
+
+---
 
 ## Current Progress
 

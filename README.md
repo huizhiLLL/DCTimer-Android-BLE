@@ -1,13 +1,9 @@
+<h4 align="right"><strong><a href="README-en.md">English</a></strong> | 简体中文</h4>
+
 <div align="center">
   <img src=".github/assets/dctimer-logo.png" alt="DCTimer-Android-BLE logo" width="128" height="128" />
 
   <h1>DCTimer-Android-BLE</h1>
-
-  <p>
-    <strong>中文</strong>
-    ·
-    <a href="README-en.md">English</a>
-  </p>
 
   <p>
     基于 DCTimer-Android 二次开发的 Android 蓝牙硬件计时器，重点支持智能魔方和 QiYi Smart Timer。
@@ -19,6 +15,8 @@
     <img alt="Gradle" src="https://img.shields.io/badge/Gradle-8.11.1-02303A?style=for-the-badge&logo=gradle&logoColor=white" />
   </p>
 </div>
+
+---
 
 ## 当前进度
 
