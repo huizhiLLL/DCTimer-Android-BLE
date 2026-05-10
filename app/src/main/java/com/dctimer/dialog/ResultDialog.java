@@ -2,6 +2,7 @@ package com.dctimer.dialog;
 
 import android.app.Activity;
 import android.app.Dialog;
+import android.content.ClipData;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Bitmap;
@@ -22,6 +23,7 @@ import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.dctimer.APP;
 import com.dctimer.R;
@@ -30,6 +32,8 @@ import com.dctimer.activity.WebActivity;
 import com.dctimer.util.Utils;
 
 import scrambler.Scrambler;
+
+import static android.content.Context.CLIPBOARD_SERVICE;
 
 public class ResultDialog extends DialogFragment {
     private EditText etComment;
@@ -116,9 +120,17 @@ public class ResultDialog extends DialogFragment {
             etComment.setText(comment);
             etComment.setSelection(comment.length());
         }
-        if (!TextUtils.isEmpty(solution))
+        if (!TextUtils.isEmpty(solution)) {
             tvSolution.setText(solution);
-        else {
+            tvSolution.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    android.content.ClipboardManager clip = (android.content.ClipboardManager) getActivity().getSystemService(CLIPBOARD_SERVICE);
+                    clip.setPrimaryClip(ClipData.newPlainText("text", solution));
+                    Toast.makeText(getActivity(), R.string.copy_success, Toast.LENGTH_SHORT).show();
+                }
+            });
+        } else {
             //btnSolution.setVisibility(View.GONE);
             llSolution.setVisibility(View.GONE);
         }
