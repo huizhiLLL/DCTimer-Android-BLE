@@ -289,7 +289,8 @@ h1 {
 }
 
 .feature-row.reverse {
-  grid-template-columns: minmax(680px, 1.34fr) minmax(0, 0.66fr);
+  grid-template-columns: minmax(650px, 1.26fr) minmax(320px, 0.74fr);
+  gap: clamp(20px, 3vw, 48px);
   width: min(100%, 1880px);
 }
 
@@ -419,6 +420,7 @@ h1 {
   .feature-row,
   .feature-row.reverse {
     grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
   }
 
   .feature-row.reverse .feature-copy,
@@ -458,8 +460,10 @@ h1 {
   }
 
   h1 {
+    width: 100%;
     margin-bottom: 16px;
-    font-size: clamp(46px, 15vw, 60px);
+    font-size: clamp(40px, 12.4vw, 52px);
+    text-align: center;
   }
 
   .tag-list {
