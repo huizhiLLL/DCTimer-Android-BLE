@@ -73,7 +73,6 @@
 - `docs/project.md` 维护项目现状、当前能力和当前任务。
 - `docs/architecture.md` 维护架构边界、协议边界和数据边界。
 - `docs/roadmap.md` 维护路线图、已收口决策和暂不推进事项。
-- `docs/product/` 只维护面向产品展示的信息。
+- `docs/product/` 只保留一份软件关键信息文档，用于记录名称、当前版本、底层系统和蓝牙设备支持列表。
 - `docs/other/` 只保留非主线参考资料。
-- 不再维护长期 `docs/plan/` 和 `docs/tasks/` 子目录。
 
