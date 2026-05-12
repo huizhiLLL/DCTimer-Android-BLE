@@ -1,12 +1,11 @@
 # DCTimer-Android 路线图与决策备忘
 
-日期：`2026-05-02`
+日期：`2026-05-13`
 
 ## 当前路线图
 
 ### 近期
 
-- 完成 `QiYi / Tornado V4` 陀螺仪重建链路真机验证。
 - 继续观察智能魔方和蓝牙计时器在 Android 12 / 15 上的扫描、连接、断开与自动计时稳定性。
 - 保持文档只维护 `docs/project.md`、`docs/architecture.md`、`docs/roadmap.md` 三个长期开发文档。
 
@@ -58,6 +57,8 @@
 - `100ms` 内对向层组合识别为 `E / M / S`。
 - TPS 使用重建后的步数统计，`U2` 与 `E / M / S` 按一步计，`x / y / z` 不计入主 TPS。
 - `QiYi / Tornado V4` 陀螺仪识别依赖手动“初始化视角”，未初始化时不参与重建。
+- `QiYi / QYSC` 与 `QiYi / Tornado V4` 智能链路已完成真机验证，当前暂无已知问题。
+- `QiYi / QYSC` 的状态帧可能提前携带晚于当前帧的 history 步，协议层按时间戳将当前帧步与 future history 步分段处理；future history 步只用于实时状态/3D 更新，不参与打乱偏离累计。
 - 打乱完成后、首转起表前的视角变化按“初始化姿态 -> 起手姿态”的最短转体路径插入 `Cross` 开头，作为 setup 前缀。
 
 ### 蓝牙计时器决策

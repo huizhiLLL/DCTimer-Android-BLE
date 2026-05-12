@@ -13,9 +13,6 @@ import android.util.Log;
 import com.dctimer.activity.MainActivity;
 import com.dctimer.model.SmartCube;
 
-import cs.min2phase.CubieCube;
-import cs.min2phase.Util;
-
 import java.security.GeneralSecurityException;
 import java.util.ArrayDeque;
 import java.util.Arrays;
@@ -431,7 +428,6 @@ public class QiyiCubeProtocol implements SmartCubeProtocol {
             return;
         }
         String facelet = parseFacelet(msg, 7);
-        String stateBeforeMoves = smartCube.getCubeState();
         if (TextUtils.isEmpty(smartCube.getCubeState())) {
             if (syncCubeState(facelet)) {
                 lastTimestamp = timestamp;
@@ -454,8 +450,6 @@ public class QiyiCubeProtocol implements SmartCubeProtocol {
                 Log.w(TAG, "QiYi 检测到本地手动重置后的状态差异，保持本地推演，不用 facelet 回覆盖");
             } else {
                 Log.w(TAG, "QiYi 状态与步序推演不一致，使用 facelet 重同步");
-                Log.w(TAG, buildStateMismatchLog(msg, previousTimestamp, timestamp, currentMoves,
-                        stateBeforeMoves, smartCube.getCubeState(), facelet));
                 syncCubeState(facelet);
                 context.refreshSmartCubeStateUi();
             }
@@ -516,150 +510,6 @@ public class QiyiCubeProtocol implements SmartCubeProtocol {
             }
         }
         return Arrays.copyOf(result, resultCount);
-    }
-
-    private String buildStateMismatchLog(byte[] msg, long previousTimestamp, long frameTimestamp,
-                                         MoveSample[] emittedMoves, String beforeState,
-                                         String localState, String deviceState) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("QiYi mismatch frameTs=").append(frameTimestamp)
-                .append(" previousTs=").append(previousTimestamp)
-                .append(" primary=").append(formatMoveSample(msg[34] & 0xff, frameTimestamp))
-                .append(" emitted=").append(formatMoveSamples(emittedMoves))
-                .append(" history=").append(formatHistorySlots(msg))
-                .append(" before=").append(shortState(beforeState))
-                .append(" local=").append(shortState(localState))
-                .append(" device=").append(shortState(deviceState))
-                .append(" diagnosis=").append(diagnoseMoveMismatch(beforeState, deviceState, emittedMoves));
-        return sb.toString();
-    }
-
-    private static String diagnoseMoveMismatch(String beforeState, String deviceState, MoveSample[] emittedMoves) {
-        if (TextUtils.isEmpty(beforeState) || TextUtils.isEmpty(deviceState)) {
-            return "state-empty";
-        }
-        int[] moves = toMoveArray(emittedMoves);
-        if (moves.length == 0) {
-            String single = findSingleMoveMatch(beforeState, deviceState);
-            return single == null ? "no-emitted-match" : "device-has-unreported-" + single;
-        }
-        String emittedState = applyMoves(beforeState, moves, -1);
-        if (deviceState.equals(emittedState)) {
-            return "emitted-match";
-        }
-        for (int skip = 0; skip < moves.length; skip++) {
-            String state = applyMoves(beforeState, moves, skip);
-            if (deviceState.equals(state)) {
-                return "device-matches-without-" + formatMove(moves[skip]) + "#" + skip;
-            }
-        }
-        String single = findSingleMoveMatch(beforeState, deviceState);
-        if (single != null) {
-            return "device-single-" + single;
-        }
-        return "unmatched";
-    }
-
-    private static int[] toMoveArray(MoveSample[] emittedMoves) {
-        if (emittedMoves == null || emittedMoves.length == 0) {
-            return new int[0];
-        }
-        int[] moves = new int[emittedMoves.length];
-        int count = 0;
-        for (MoveSample moveSample : emittedMoves) {
-            int move = convertMove(moveSample.move);
-            if (move >= 0) {
-                moves[count++] = move;
-            }
-        }
-        return Arrays.copyOf(moves, count);
-    }
-
-    private static String findSingleMoveMatch(String beforeState, String deviceState) {
-        for (int move = 0; move < 18; move++) {
-            int normalizedMove = move / 3 * 3 + move % 3;
-            String state = applyMoves(beforeState, new int[]{normalizedMove}, -1);
-            if (deviceState.equals(state)) {
-                return formatMove(normalizedMove);
-            }
-        }
-        return null;
-    }
-
-    private static String applyMoves(String startState, int[] moves, int skipIndex) {
-        CubieCube cube = new CubieCube();
-        if (Util.toCubieCube(startState, cube) != 0) {
-            return null;
-        }
-        for (int i = 0; i < moves.length; i++) {
-            if (i == skipIndex) {
-                continue;
-            }
-            cube = cube.move(moves[i]);
-        }
-        return Util.toFaceCube(cube);
-    }
-
-    private static String formatMoveSamples(MoveSample[] moves) {
-        if (moves == null || moves.length == 0) {
-            return "[]";
-        }
-        StringBuilder sb = new StringBuilder("[");
-        for (int i = 0; i < moves.length; i++) {
-            if (i > 0) {
-                sb.append(',');
-            }
-            sb.append(formatMoveSample(moves[i].move, moves[i].timestamp));
-        }
-        sb.append(']');
-        return sb.toString();
-    }
-
-    private static String formatHistorySlots(byte[] msg) {
-        StringBuilder sb = new StringBuilder("[");
-        boolean hasValue = false;
-        for (int i = 0; i < QIYI_HISTORY_SLOT_COUNT; i++) {
-            int offset = QIYI_HISTORY_SLOT_START + QIYI_HISTORY_SLOT_SIZE * i;
-            if (offset + QIYI_HISTORY_SLOT_SIZE > msg.length) {
-                break;
-            }
-            if (isEmptyHistorySlot(msg, offset)) {
-                continue;
-            }
-            if (hasValue) {
-                sb.append(',');
-            }
-            sb.append(i).append(':')
-                    .append(formatMoveSample(msg[offset + 4] & 0xff, readUint32Static(msg, offset)));
-            hasValue = true;
-        }
-        sb.append(']');
-        return sb.toString();
-    }
-
-    private static String formatMoveSample(int rawMove, long timestamp) {
-        int move = convertMove(rawMove);
-        String moveText;
-        if (move < 0) {
-            moveText = "invalid";
-        } else {
-            moveText = formatMove(move);
-        }
-        return rawMove + "/" + moveText.trim() + "@" + timestamp;
-    }
-
-    private static String formatMove(int move) {
-        return ("URFDLB".charAt(move / 3) + " 2'".substring(move % 3, move % 3 + 1)).trim();
-    }
-
-    private static String shortState(String state) {
-        if (TextUtils.isEmpty(state)) {
-            return "empty";
-        }
-        if (state.length() <= 12) {
-            return state;
-        }
-        return state.substring(0, 6) + ".." + state.substring(state.length() - 6);
     }
 
     private static boolean isEmptyHistorySlot(byte[] msg, int offset) {
