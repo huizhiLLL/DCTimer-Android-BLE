@@ -1372,12 +1372,24 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     }
 
     private void showSmartCubeRestoreHintIfNeeded() {
+        if (timer != null && timer.getTimerState() == DCTTimer.RUNNING) {
+            return;
+        }
         long now = SystemClock.uptimeMillis();
         if (now - smartCubeLastRestoreHintTime < SMART_CUBE_RESTORE_HINT_INTERVAL_MS) {
             return;
         }
         smartCubeLastRestoreHintTime = now;
-        Toast.makeText(context, R.string.smart_cube_restore_first, Toast.LENGTH_SHORT).show();
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            Toast.makeText(context, R.string.smart_cube_restore_first, Toast.LENGTH_SHORT).show();
+        } else {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    Toast.makeText(context, R.string.smart_cube_restore_first, Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
     }
 
     private SmartCubeSequenceProgress resolveSequenceProgress(String cubeState, String startFacelet, List<String> moves, List<String> fullStates) {
@@ -1706,9 +1718,13 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     }
 
     public void moveCube(SmartCube cube, int move, int time) {
+        moveCube(cube, move, time, true);
+    }
+
+    public void moveCube(SmartCube cube, int move, int time, boolean trackScrambleDeviation) {
         String previousState = cube.getCubeState();
         cube.applyMove(move, time, currentScramble.getCubeState());
-        updateSmartCubeScrambleProgress(cube, move);
+        updateSmartCubeScrambleProgress(cube, trackScrambleDeviation ? move : -1);
         updateSmartCubeMoveUi(previousState, cube.getCubeState(), move);
         if (timer.getTimerState() == DCTTimer.READY || timer.getTimerState() == DCTTimer.INSPECTING) {
             if (canStart) {

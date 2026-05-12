@@ -42,6 +42,7 @@
 - [CubicTimer](https://github.com/hato-ya/CubicTimer)：奇艺智能计时器接入参考
 - [Soda](https://space.bilibili.com/400839068)：奇艺智能测试魔方来源
 - [Visionary](https://space.bilibili.com/674586122)：配合测试 GAN 智能魔方
+- [妙言](https://miaoyan.app)：官网设计参考
 - [Codex](https://github.com/codex)：开发伙伴
 
 ## License
