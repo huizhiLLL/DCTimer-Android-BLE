@@ -134,8 +134,8 @@ public class SmartCube3DView extends GLSurfaceView {
     private static class CubeRenderer implements Renderer {
         private static final float FACE_DISTANCE = 1.5f;
         private static final float CELL_HALF = 0.505f;
-        private static final float STICKER_HALF = 0.385f;
-        private static final float STICKER_Z_OFFSET = 0.045f;
+        private static final float STICKER_HALF = 0.415f;
+        private static final float STICKER_Z_OFFSET = 0.032f;
         private static final String VERTEX_SHADER =
                 "uniform mat4 uMvpMatrix;" +
                 "attribute vec3 aPosition;" +
@@ -232,8 +232,11 @@ public class SmartCube3DView extends GLSurfaceView {
                 int baseColor = shadeColor(0xff111111, transform.normal, 0.42f);
                 int stickerColor = shadeColor(faceColor(state.charAt(i)), transform.normal, 0.86f);
                 drawQuad(transform.center, transform.u, transform.v, transform.normal, CELL_HALF, baseColor);
+                GLES20.glEnable(GLES20.GL_POLYGON_OFFSET_FILL);
+                GLES20.glPolygonOffset(-1f, -1f);
                 drawQuad(transform.center.add(transform.normal.scale(STICKER_Z_OFFSET)), transform.u, transform.v,
                         transform.normal, STICKER_HALF, stickerColor);
+                GLES20.glDisable(GLES20.GL_POLYGON_OFFSET_FILL);
             }
         }
 

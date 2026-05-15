@@ -60,7 +60,7 @@
 ## UI 与状态边界
 
 - 普通计时、智能魔方、蓝牙计时器可以共享基础计时页，但硬件语义必须由入口模式控制。
-- 计时页智能魔方状态预览使用独立 `SmartCube3DView`，内部基于 `GLSurfaceView + OpenGL ES 2.0` 渲染 `3x3` 固定视角魔方；普通打乱图和状态弹窗继续使用 `SmartCubeImageView` 的 Canvas / Bitmap 路径。
+- 计时页和魔方状态弹窗的智能魔方状态预览使用独立 `SmartCube3DView`，内部基于 `GLSurfaceView + OpenGL ES 2.0` 渲染 `3x3` 固定视角魔方；普通打乱图继续使用 `SmartCubeImageView` 的 Canvas / Bitmap 路径。
 - 智能魔方 3D 预览只消费业务层传入的 `facelet` 状态和 `move` 动画指令，不直接接触 BLE 协议解析、计时状态机或成绩保存逻辑。
 - 普通成绩列表允许按单次、滚动平均 1、滚动平均 2 的历史 `PB` 记录临时排序；该排序只影响列表展示，不改变成绩保存顺序。
 - 智能魔方和蓝牙计时器绿色准备态可复用沉浸式预览布局；普通计时器 `READY` 保持普通计时区布局，只在 `RUNNING` 后进入沉浸式计时布局。

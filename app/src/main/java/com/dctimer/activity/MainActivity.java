@@ -1794,7 +1794,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 }
                 androidx.fragment.app.Fragment fragment = getSupportFragmentManager().findFragmentByTag("CubeState");
                 if (fragment instanceof CubeStateDialog) {
-                    ((CubeStateDialog) fragment).refreshState();
+                    ((CubeStateDialog) fragment).playMove(fromState, toState, move);
                 }
                 if (timer.getTimerState() == DCTTimer.RUNNING) {
                     return;
