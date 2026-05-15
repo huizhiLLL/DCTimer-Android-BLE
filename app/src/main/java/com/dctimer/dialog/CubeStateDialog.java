@@ -14,6 +14,7 @@ import android.widget.TextView;
 import com.dctimer.R;
 import com.dctimer.activity.MainActivity;
 import com.dctimer.model.SmartCube;
+import com.dctimer.view.SmartCube3DView;
 import com.dctimer.view.SmartCubeImageView;
 
 public class CubeStateDialog extends DialogFragment {
@@ -21,6 +22,7 @@ public class CubeStateDialog extends DialogFragment {
     private TextView tvBattery;
     private ImageView ivBattery;
     private SmartCubeImageView imageView;
+    private SmartCube3DView cube3DView;
 
     public static CubeStateDialog newInstance(SmartCube cube) {
         CubeStateDialog dialog = new CubeStateDialog();
@@ -42,6 +44,7 @@ public class CubeStateDialog extends DialogFragment {
         tvBattery.setText(batteryValue + "%");
         ivBattery = view.findViewById(R.id.iv_battery);
         setBatteryImage(batteryValue);
+        cube3DView = view.findViewById(R.id.gl_cube_state);
         imageView = view.findViewById(R.id.image_view);
         setImage();
         Button btRefresh = view.findViewById(R.id.btn_refresh);
@@ -85,6 +88,23 @@ public class CubeStateDialog extends DialogFragment {
         return buidler.create();
     }
 
+    @Override
+    public void onResume() {
+        super.onResume();
+        if (cube3DView != null) {
+            cube3DView.onResume();
+            setImage();
+        }
+    }
+
+    @Override
+    public void onPause() {
+        if (cube3DView != null) {
+            cube3DView.onPause();
+        }
+        super.onPause();
+    }
+
     private void setBatteryImage(int batteryValue) {
         if (batteryValue >= 95) ivBattery.setImageResource(R.drawable.ic_battery_100);
         else if (batteryValue >= 85) ivBattery.setImageResource(R.drawable.ic_battery_90);
@@ -102,7 +122,16 @@ public class CubeStateDialog extends DialogFragment {
     private void setImage() {
         SmartCube currentCube = resolveCube();
         if (currentCube != null) {
-            imageView.showCubeState(currentCube.getCubeState());
+            if (cube3DView != null) {
+                cube3DView.setVisibility(View.VISIBLE);
+                if (imageView != null) {
+                    imageView.setVisibility(View.GONE);
+                }
+                cube3DView.showCubeState(currentCube.getCubeState());
+            } else if (imageView != null) {
+                imageView.setVisibility(View.VISIBLE);
+                imageView.showCubeState(currentCube.getCubeState());
+            }
         }
     }
 
@@ -122,7 +151,9 @@ public class CubeStateDialog extends DialogFragment {
         if (cube != null) {
             cube.setCubeState(toState);
         }
-        if (imageView != null) {
+        if (cube3DView != null) {
+            cube3DView.animateMove(fromState, toState, move);
+        } else if (imageView != null) {
             imageView.animateMove(fromState, toState, move);
         }
     }

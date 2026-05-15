@@ -10,6 +10,13 @@
         android:layout_height="wrap_content"
         android:contentDescription="@string/app_name" />
 
+    <com.dctimer.view.SmartCube3DView
+        android:id="@+id/gl_cube"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        android:contentDescription="@string/app_name" />
+
     <ProgressBar
         android:id="@+id/progress"
         android:layout_width="wrap_content"

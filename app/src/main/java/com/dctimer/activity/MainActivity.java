@@ -85,6 +85,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private ImageButton btnRight;
     private TextView tvTimer;   //计时器
     private SmartCubeImageView scrambleView; //打乱图案
+    private SmartCube3DView smartCube3DView; //智能魔方实时 3D 预览
     private Bitmap bmScrambleView;
     private TextView tvStat;    //统计简要
     private TextView tvMulPhase;
@@ -316,6 +317,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         tvTimer = findViewById(R.id.tv_timer);
         tvTimer.setOnTouchListener(mOnTouchListener);
         scrambleView = findViewById(R.id.iv_scramble);
+        smartCube3DView = findViewById(R.id.gl_cube);
         int tvHeight = (int) (dm.heightPixels - 76 * dpi) / 2;
         tvScramble.setHeight(tvHeight);
         //tvScramble.setMovementMethod(ScrollingMovementMethod.getInstance());
@@ -453,6 +455,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             stackmat.setDataFormat(dataFormat);
             stackmat.start();
         }
+        if (smartCube3DView != null) {
+            smartCube3DView.onResume();
+        }
     }
 
     @Override
@@ -471,6 +476,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         if (stackmat != null) {
             stackmat.stop();
             //stackmat = null;
+        }
+        if (smartCube3DView != null) {
+            smartCube3DView.onPause();
         }
     }
 
@@ -1782,12 +1790,11 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             @Override
             public void run() {
                 if (shouldShowTimerPageCubeState()) {
-                    scrambleView.setVisibility(View.VISIBLE);
-                    scrambleView.showCubeState(toState);
+                    animateTimerPageCubeState(fromState, toState, move);
                 }
                 androidx.fragment.app.Fragment fragment = getSupportFragmentManager().findFragmentByTag("CubeState");
                 if (fragment instanceof CubeStateDialog) {
-                    ((CubeStateDialog) fragment).refreshState();
+                    ((CubeStateDialog) fragment).playMove(fromState, toState, move);
                 }
                 if (timer.getTimerState() == DCTTimer.RUNNING) {
                     return;
@@ -2439,10 +2446,11 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 stAdapter.setCheck(position, showImage);
                 setPref("showscr", showImage);
                 if (showImage) {
-                    scrambleView.setVisibility(View.VISIBLE);
                     showScrambleView();
+                } else {
+                    scrambleView.setVisibility(View.GONE);
+                    hideTimerPageCubeState();
                 }
-                else scrambleView.setVisibility(View.GONE);
                 break;
             case 19:    //EG打乱
                 new AlertDialog.Builder(context).setMultiChoiceItems(R.array.opt_eg_scramble, egIdx, new DialogInterface.OnMultiChoiceClickListener() {
@@ -3168,7 +3176,11 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 break;
             case ST_IMAGE_SIZE: //打乱状态
                 imageSize = progress * 10 + 160;
-                setImageSize();
+                if (shouldShowTimerPageCubeState()) {
+                    setSmartCubeImageSize();
+                } else {
+                    setImageSize();
+                }
                 setPref("svsize", imageSize);
                 break;
             case ST_TIMER_SIZE: //计时器大小
@@ -3271,10 +3283,12 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     finish();
                     startActivity(intent);
                     break;
-                case 14: scrambleView.setVisibility(View.GONE); break;
+                case 14:
+                    scrambleView.setVisibility(View.GONE);
+                    hideTimerPageCubeState();
+                    break;
                 case 15:
-                    scrambleView.setVisibility(View.VISIBLE);
-                    scrambleView.setImageBitmap(bmScrambleView);
+                    showTimerPageScrambleImage(bmScrambleView);
                     break;
                 case 21:
                     tvScramble.setText(getString(R.string.initializing) + " (0%) ...");
@@ -3426,9 +3440,18 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             btnRight.setVisibility(vi);
         }
         toolbar.setVisibility(vi);
-        if (showImage || shouldShowTimerPageCubeState())
-            scrambleView.setVisibility(shouldShowTimerPageCubeState() ? View.VISIBLE : vi);
-        else scrambleView.setVisibility(View.GONE);
+        if (shouldShowTimerPageCubeState()) {
+            scrambleView.setVisibility(View.GONE);
+            if (smartCube3DView != null) {
+                smartCube3DView.setVisibility(View.VISIBLE);
+            }
+        } else if (showImage) {
+            hideTimerPageCubeState();
+            scrambleView.setVisibility(vi);
+        } else {
+            scrambleView.setVisibility(View.GONE);
+            hideTimerPageCubeState();
+        }
     }
 
     private void setReadyHoldUi(boolean active) {
@@ -3446,6 +3469,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         btnRight.setAlpha(alpha);
         toolbar.setAlpha(alpha);
         scrambleView.setAlpha(alpha);
+        if (smartCube3DView != null) {
+            smartCube3DView.setAlpha(alpha);
+        }
         tvMulPhase.setAlpha(alpha);
         if (tvTest != null) {
             tvTest.setAlpha(alpha);
@@ -3579,7 +3605,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         int width = (int) (imageSize * dpi * 0.67f);
         int height = (int) (imageSize * dpi * 0.76f);
         int bottomMargin = APP.getPixel(5);
-        ViewGroup.LayoutParams current = scrambleView.getLayoutParams();
+        ViewGroup.LayoutParams current = smartCube3DView != null ? smartCube3DView.getLayoutParams() : scrambleView.getLayoutParams();
         if (current instanceof RelativeLayout.LayoutParams) {
             RelativeLayout.LayoutParams currentParams = (RelativeLayout.LayoutParams) current;
             if (currentParams.width == width
@@ -3588,11 +3614,54 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 return;
             }
         }
+        if (smartCube3DView != null) {
+            smartCube3DView.setLayoutParams(buildPreviewLayoutParams(width, height, bottomMargin));
+        }
+        scrambleView.setLayoutParams(buildPreviewLayoutParams(width, height, bottomMargin));
+    }
+
+    private RelativeLayout.LayoutParams buildPreviewLayoutParams(int width, int height, int bottomMargin) {
         RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(width, height);
         params.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM);
         params.addRule(RelativeLayout.ALIGN_PARENT_RIGHT);
         params.setMargins(0, 0, 0, bottomMargin);
-        scrambleView.setLayoutParams(params);
+        return params;
+    }
+
+    private void showTimerPageCubeState(String cubeState) {
+        setSmartCubeImageSize();
+        scrambleView.setVisibility(View.GONE);
+        if (smartCube3DView != null) {
+            smartCube3DView.setVisibility(View.VISIBLE);
+            smartCube3DView.showCubeState(cubeState);
+        } else {
+            scrambleView.setVisibility(View.VISIBLE);
+            scrambleView.showCubeState(cubeState);
+        }
+    }
+
+    private void animateTimerPageCubeState(String fromState, String toState, int move) {
+        setSmartCubeImageSize();
+        scrambleView.setVisibility(View.GONE);
+        if (smartCube3DView != null) {
+            smartCube3DView.setVisibility(View.VISIBLE);
+            smartCube3DView.animateMove(fromState, toState, move);
+        } else {
+            scrambleView.setVisibility(View.VISIBLE);
+            scrambleView.animateMove(fromState, toState, move);
+        }
+    }
+
+    private void hideTimerPageCubeState() {
+        if (smartCube3DView != null) {
+            smartCube3DView.setVisibility(View.GONE);
+        }
+    }
+
+    private void showTimerPageScrambleImage(Bitmap bitmap) {
+        hideTimerPageCubeState();
+        scrambleView.setVisibility(View.VISIBLE);
+        scrambleView.setImageBitmap(bitmap);
     }
 
     private void setTextsColor() {
@@ -3732,19 +3801,18 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 @Override
                 public void run() {
                     scrambleView.setVisibility(View.GONE);
+                    hideTimerPageCubeState();
                 }
             });
             return;
         }
         //Log.w("dct", currentScramble.getCategory()+", "+currentScramble.getImageType());
         if (cube != null && !TextUtils.isEmpty(cube.getCubeState())) {
-            setSmartCubeImageSize();
             final String cubeState = cube.getCubeState();
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    scrambleView.setVisibility(View.VISIBLE);
-                    scrambleView.showCubeState(cubeState);
+                    showTimerPageCubeState(cubeState);
                 }
             });
             return;
@@ -3761,14 +3829,14 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    scrambleView.setVisibility(View.VISIBLE);
-                    scrambleView.setImageBitmap(bmScrambleView);
+                    showTimerPageScrambleImage(bmScrambleView);
                 }
             });
         } else runOnUiThread(new Runnable() {
             @Override
             public void run() {
                 scrambleView.setVisibility(View.GONE);
+                hideTimerPageCubeState();
             }
         });
     }
