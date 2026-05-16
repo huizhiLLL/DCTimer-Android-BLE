@@ -1,7 +1,7 @@
 {
-  "versionCode": 223,
-  "versionName": "2.2",
+  "versionCode": 224,
+  "versionName": "2.2.4",
   "releaseUrl": "https://dctimer.huizhi.ink/",
-  "apkUrl": "https://dctimer.huizhi.ink/assets/DCTimer-BLE-v2.2.apk",
-  "notes": "当前版本为 DCTimer-BLE v2.2。"
+  "apkUrl": "https://dctimer.huizhi.ink/assets/DCTimer-BLE-v2.2.4.apk",
+  "notes": "当前版本为 DCTimer-BLE v2.2.4。"
 }
