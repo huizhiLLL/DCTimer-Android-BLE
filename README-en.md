@@ -68,6 +68,8 @@
 - [Soda](https://space.bilibili.com/400839068): provided QiYi and Tornado smart cube test hardware
 - [Visionary](https://space.bilibili.com/674586122): GAN smart cube testing
 
+If this project is helpful to you, I hope you can give it a star, which will be the motivation for my future maintenance ~
+
 ## License
 
 GPLv3

@@ -67,6 +67,8 @@
 - [Soda](https://space.bilibili.com/400839068)：奇艺智能及风智能测试魔方来源
 - [Visionary](https://space.bilibili.com/674586122)：GAN 智能魔方测试
 
+如果这个项目对你有帮助，希望你能给它一颗 Star， 这将成为我后续维护的动力 ~
+
 ## License
 
 GPLv3
