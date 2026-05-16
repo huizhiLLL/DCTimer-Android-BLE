@@ -14,6 +14,11 @@
     <img alt="Java" src="https://img.shields.io/badge/Java-17-007396?style=for-the-badge&logo=openjdk&logoColor=white" />
     <img alt="Gradle" src="https://img.shields.io/badge/Gradle-8.11.1-02303A?style=for-the-badge&logo=gradle&logoColor=white" />
   </p>
+
+  <p>
+    <img src="website/assets/web1.svg" alt="DCTimer-BLE 计时界面截图" width="360" />
+    <img src="website/assets/web3.svg" alt="DCTimer-BLE 功能改进截图" width="360" />
+  </p>
 </div>
 
 ---
