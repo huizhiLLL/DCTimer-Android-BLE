@@ -23,16 +23,31 @@
 
 ---
 
-## Current Progress
+## Download
 
-Supported devices:
-- `Moyu32`
-- `QYSC` / `Tornado V4`
-- `GAN` (`v2 / v3 / v4`)
-- `QiYi Smart Timer`
+- [GitHub Releases](https://github.com/huizhiLLL/DCTimer-Android-BLE/releases/latest)
+- [Official direct download](https://dctimer.huizhi.ink/assets/DCTimer-BLE-v2.2.4.apk)
 
-Key changes:
-- Upgraded to `AndroidX / AGP 8.9.2 / Gradle 8.11.1 / targetSdk 35`
+> DCTimer-BLE uses a different package name from the original DCTimer, so it will not conflict during installation
+> It is compatible with the original data format. Export data from the original DCTimer and import it into DCTimer-BLE to migrate your data.
+
+## Features
+
+- Compatible with mainstream smart cube brands
+- Draggable real-time 3D rendering for smart cubes
+- Carefully optimized smart scramble guidance and correction flow
+- Fast connection, with no manual MAC address entry required. From app launch to connected, it usually takes only 4-6 seconds.
+
+## Support
+
+- `Moyu32` (MoYu smart cube)
+- `QYSC` / `Tornado V4` (QiYi smart cube and Tornado series)
+- `GAN` (`v2 / v3 / v4`) (GAN smart cube)
+- `QiYi Smart Timer` (QiYi smart timer)
+
+## Improvements
+
+- Upgraded to `AndroidX / AGP 8.9.2 / Gradle 8.11.1 / targetSdk 35` for better stability on newer Android devices
 - Database import/export, scramble import/export, and background image selection have been migrated to the system document picker
 - The solve entry now supports separate `Smart Cube` / `Bluetooth Timer` modes
 - Added 8s/12s voice reminders for WCA inspection mode
@@ -43,11 +58,15 @@ Key changes:
 
 - [DCTimer-Android](https://github.com/MeigenChou/DCTimer-Android): original DCTimer-Android repository
 - [cstimer](https://github.com/cs0x7f/cstimer): smart cube protocol reference
-- [qiyi_smartcube_protocol](https://codeberg.org/Flying-Toast/qiyi_smartcube_protocol): QiYi smart protocol reference
+- [qiyi_smartcube_protocol](https://codeberg.org/Flying-Toast/qiyi_smartcube_protocol): smart cube protocol reference
 - [CubicTimer](https://github.com/hato-ya/CubicTimer): QiYi Smart Timer integration reference
-- [Soda](https://space.bilibili.com/400839068): provided the QiYi smart cube test hardware
-- [Visionary](https://space.bilibili.com/674586122): helped test GAN smart cube support
+- [Miaoyan](https://miaoyan.app): official website design reference
 - [Codex](https://github.com/codex): development partner
+
+---
+
+- [Soda](https://space.bilibili.com/400839068): provided QiYi and Tornado smart cube test hardware
+- [Visionary](https://space.bilibili.com/674586122): GAN smart cube testing
 
 ## License
 
