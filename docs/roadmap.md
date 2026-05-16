@@ -37,6 +37,7 @@
 - 未提供签名信息时直接报错，不生成不可分发包。
 - 当前版本号基线为 `2.2`。
 - release APK 输出名固定为 `DCTimer-BLE-v版本号.apk`。
+- `rel.bat` 打包成功后同步 APK 到 `website/assets`，供网站直链下载使用。
 
 ### 智能魔方
 
@@ -65,4 +66,3 @@
 - `QiYi Smart Timer` 按独立 `QiyiSmartTimerProtocol` 接入。
 - 蓝牙计时器模式不启用应用内 `WCA` 观察和观察提示。
 - 智能魔方和蓝牙计时器断联后，应回退普通计时器。
-
