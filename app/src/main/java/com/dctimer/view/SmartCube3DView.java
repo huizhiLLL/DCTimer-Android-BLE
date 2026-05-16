@@ -9,6 +9,8 @@ import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
 import android.text.TextUtils;
 import android.util.AttributeSet;
+import android.view.MotionEvent;
+import android.view.ViewConfiguration;
 import android.view.animation.LinearInterpolator;
 
 import java.nio.ByteBuffer;
@@ -23,10 +25,17 @@ import javax.microedition.khronos.opengles.GL10;
 public class SmartCube3DView extends GLSurfaceView {
     private static final String SOLVED_FACELET = "UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB";
     private static final long DEFAULT_ANIMATION_DURATION_MS = 110L;
+    private static final float TOUCH_DEGREES_PER_PX = 0.28f;
     private static final LinearInterpolator LINEAR_INTERPOLATOR = new LinearInterpolator();
 
     private final CubeRenderer cubeRenderer;
     private ValueAnimator animator;
+    private float lastTouchX;
+    private float lastTouchY;
+    private float touchStartX;
+    private float touchStartY;
+    private boolean draggingView;
+    private int touchSlop;
 
     public SmartCube3DView(Context context) {
         this(context, null);
@@ -42,6 +51,7 @@ public class SmartCube3DView extends GLSurfaceView {
         cubeRenderer = new CubeRenderer();
         setRenderer(cubeRenderer);
         setRenderMode(RENDERMODE_WHEN_DIRTY);
+        touchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
     }
 
     public void showCubeState(String facelets) {
@@ -106,6 +116,61 @@ public class SmartCube3DView extends GLSurfaceView {
     }
 
     @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                lastTouchX = event.getX();
+                lastTouchY = event.getY();
+                touchStartX = lastTouchX;
+                touchStartY = lastTouchY;
+                draggingView = false;
+                if (getParent() != null) {
+                    getParent().requestDisallowInterceptTouchEvent(true);
+                }
+                return true;
+            case MotionEvent.ACTION_MOVE:
+                float x = event.getX();
+                float y = event.getY();
+                if (!draggingView
+                        && (Math.abs(x - touchStartX) > touchSlop || Math.abs(y - touchStartY) > touchSlop)) {
+                    draggingView = true;
+                }
+                final float deltaYaw = (x - lastTouchX) * TOUCH_DEGREES_PER_PX;
+                final float deltaPitch = (y - lastTouchY) * TOUCH_DEGREES_PER_PX;
+                lastTouchX = x;
+                lastTouchY = y;
+                queueEvent(new Runnable() {
+                    @Override
+                    public void run() {
+                        cubeRenderer.rotateView(deltaYaw, deltaPitch);
+                    }
+                });
+                requestRender();
+                return true;
+            case MotionEvent.ACTION_UP:
+                if (!draggingView) {
+                    performClick();
+                }
+                if (getParent() != null) {
+                    getParent().requestDisallowInterceptTouchEvent(false);
+                }
+                return true;
+            case MotionEvent.ACTION_CANCEL:
+                if (getParent() != null) {
+                    getParent().requestDisallowInterceptTouchEvent(false);
+                }
+                return true;
+            default:
+                return super.onTouchEvent(event);
+        }
+    }
+
+    @Override
+    public boolean performClick() {
+        return super.performClick();
+    }
+
+    @Override
     protected void onDetachedFromWindow() {
         stopAnimator();
         super.onDetachedFromWindow();
@@ -136,6 +201,7 @@ public class SmartCube3DView extends GLSurfaceView {
         private static final float CELL_HALF = 0.505f;
         private static final float STICKER_HALF = 0.415f;
         private static final float STICKER_Z_OFFSET = 0.032f;
+        private static final float MAX_VIEW_PITCH = 115f;
         private static final String VERTEX_SHADER =
                 "uniform mat4 uMvpMatrix;" +
                 "attribute vec3 aPosition;" +
@@ -162,6 +228,8 @@ public class SmartCube3DView extends GLSurfaceView {
         private String animationEndState;
         private MoveSpec animationMoveSpec;
         private float animationProgress;
+        private float viewYaw;
+        private float viewPitch;
         private int program;
         private int positionHandle;
         private int colorHandle;
@@ -185,9 +253,8 @@ public class SmartCube3DView extends GLSurfaceView {
             float aspect = width > 0 && height > 0 ? (float) width / (float) height : 1f;
             Matrix.frustumM(projectionMatrix, 0, -aspect, aspect, -1f, 1f, 3f, 18f);
             Matrix.setLookAtM(viewMatrix, 0, 4.8f, 4.1f, 7.2f, 0f, 0f, 0f, 0f, 1f, 0f);
-            Matrix.setIdentityM(modelMatrix, 0);
             Matrix.multiplyMM(vpMatrix, 0, projectionMatrix, 0, viewMatrix, 0);
-            Matrix.multiplyMM(mvpMatrix, 0, vpMatrix, 0, modelMatrix, 0);
+            updateMvpMatrix();
         }
 
         @Override
@@ -223,6 +290,33 @@ public class SmartCube3DView extends GLSurfaceView {
             if (animationProgress >= 1f && animationEndState != null) {
                 setState(animationEndState);
             }
+        }
+
+        void rotateView(float deltaYaw, float deltaPitch) {
+            viewYaw = normalizeDegrees(viewYaw + deltaYaw);
+            viewPitch = clamp(viewPitch + deltaPitch, -MAX_VIEW_PITCH, MAX_VIEW_PITCH);
+            updateMvpMatrix();
+        }
+
+        private void updateMvpMatrix() {
+            Matrix.setIdentityM(modelMatrix, 0);
+            Matrix.rotateM(modelMatrix, 0, viewPitch, 1f, 0f, 0f);
+            Matrix.rotateM(modelMatrix, 0, viewYaw, 0f, 1f, 0f);
+            Matrix.multiplyMM(mvpMatrix, 0, vpMatrix, 0, modelMatrix, 0);
+        }
+
+        private float normalizeDegrees(float degrees) {
+            if (degrees > 180f) {
+                return degrees - 360f;
+            }
+            if (degrees < -180f) {
+                return degrees + 360f;
+            }
+            return degrees;
+        }
+
+        private float clamp(float value, float min, float max) {
+            return Math.max(min, Math.min(max, value));
         }
 
         private void drawCube(String state, MoveSpec moveSpec, float moveProgress) {

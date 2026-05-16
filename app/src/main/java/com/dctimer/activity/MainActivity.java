@@ -318,6 +318,14 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         tvTimer.setOnTouchListener(mOnTouchListener);
         scrambleView = findViewById(R.id.iv_scramble);
         smartCube3DView = findViewById(R.id.gl_cube);
+        smartCube3DView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (shouldShowTimerPageCubeState()) {
+                    showCubeStateDialog();
+                }
+            }
+        });
         int tvHeight = (int) (dm.heightPixels - 76 * dpi) / 2;
         tvScramble.setHeight(tvHeight);
         //tvScramble.setMovementMethod(ScrollingMovementMethod.getInstance());
@@ -3632,6 +3640,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         setSmartCubeImageSize();
         scrambleView.setVisibility(View.GONE);
         if (smartCube3DView != null) {
+            smartCube3DView.bringToFront();
             smartCube3DView.setVisibility(View.VISIBLE);
             smartCube3DView.showCubeState(cubeState);
         } else {
@@ -3644,6 +3653,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         setSmartCubeImageSize();
         scrambleView.setVisibility(View.GONE);
         if (smartCube3DView != null) {
+            smartCube3DView.bringToFront();
             smartCube3DView.setVisibility(View.VISIBLE);
             smartCube3DView.animateMove(fromState, toState, move);
         } else {
