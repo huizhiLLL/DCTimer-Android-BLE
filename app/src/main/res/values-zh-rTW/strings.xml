@@ -120,7 +120,7 @@
     <string name="btn_close">關閉</string>
     <string name="btn_copy">複製</string>
     <string name="btn_save">保存</string>
-    <string name="btn_upgrade">檢測新版本</string>
+    <string name="btn_upgrade">檢查更新</string>
     <string name="btn_download">下載</string>
     <string name="btn_background">後台運行</string>
     <string name="btn_detail">詳情</string>
@@ -138,6 +138,10 @@
     <string name="copy_scramble">複製轉亂</string>
     <string name="delete_time">刪除</string>
     <string name="new_version">發現新版本：</string>
+    <string name="check_update_progress">正在檢查更新…</string>
+    <string name="check_update_latest">目前已是最新版本</string>
+    <string name="check_update_failed">檢查更新失敗，請稍後重試</string>
+    <string name="update_available_msg">發現新版本：%1$s</string>
     <string name="confirm_delete_result">刪除成績：</string>
     <string name="confirm_delete_last">刪除上一次成績：</string>
     <string name="confirm_clear_session">確認清空成績</string>
@@ -195,7 +199,7 @@
     <string name="menu_about">關於</string>
     <string name="menu_website">相關網站</string>
     <string name="menu_cubing">Cubing China</string>
-    <string name="about_msg">"版本：%1$s\n版權所有 © 2012—2022 MeigenChou\nAll rights reserved."</string>
+    <string name="about_msg">"版本：%1$s\n基於 DCTimer-Android 開發\n原作者：MeigenChou\n二次開發作者：huizhiLLL\n版權所有 © 2012—2022 MeigenChou\nGPL v3 開源\n開源倉庫地址：https://github.com/huizhiLLL/DCTimer-BLE"</string>
     <string name="feedback_title">DCTimer反饋</string>
     <string name="language">cn</string>
 </resources>

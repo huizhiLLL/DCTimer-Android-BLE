@@ -1,6 +1,6 @@
 # DCTimer-BLE 软件关键信息
 
-日期：`2026-05-15`
+日期：`2026-05-16`
 
 ## 基本信息
 
@@ -8,6 +8,7 @@
 - 当前版本：`2.2`
 - Android 包名：`com.dctimer.ble`
 - APK 输出名：`DCTimer-BLE-v2.2.apk`
+- 更新检查：App 内“关于”弹窗读取 `https://dctimer.huizhi.ink/update.json`，发现新版后打开 `apkUrl` 下载；不做 App 内下载和安装。
 
 ## 底层系统支持
 
