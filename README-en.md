@@ -16,8 +16,8 @@
   </p>
 
   <p>
-    <img src="website/assets/web1.svg" alt="DCTimer-BLE timer screen" width="360" />
-    <img src="website/assets/web3.svg" alt="DCTimer-BLE feature improvements" width="360" />
+    <img src="website/assets/web1.svg" alt="DCTimer-BLE timer screen" height="280" />
+    <img src="website/assets/web3.svg" alt="DCTimer-BLE feature improvements" height="280" />
   </p>
 </div>
 

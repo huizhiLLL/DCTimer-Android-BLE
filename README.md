@@ -16,8 +16,8 @@
   </p>
 
   <p>
-    <img src="website/assets/web1.svg" alt="DCTimer-BLE 计时界面截图" width="360" />
-    <img src="website/assets/web3.svg" alt="DCTimer-BLE 功能改进截图" width="360" />
+    <img src="website/assets/web1.svg" alt="DCTimer-BLE 计时界面截图" height="280" />
+    <img src="website/assets/web3.svg" alt="DCTimer-BLE 功能改进截图" height="280" />
   </p>
 </div>
 
