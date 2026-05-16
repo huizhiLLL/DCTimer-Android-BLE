@@ -40,3 +40,4 @@ design/
 other/
 .playwright-mcp/
 promo-video/
+!website/assets/*.apk
