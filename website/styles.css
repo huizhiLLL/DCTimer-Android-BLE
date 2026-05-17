@@ -343,6 +343,47 @@ h1 {
   text-align: center;
 }
 
+.migration-notes {
+  padding: 0 clamp(24px, 8vw, 150px) 78px;
+  background: var(--canvas);
+}
+
+.migration-notes-inner {
+  width: min(100%, 1180px);
+  margin: 0 auto;
+  padding: clamp(28px, 4vw, 48px);
+  border: 1px solid rgba(0, 102, 204, 0.14);
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.migration-notes h2 {
+  margin-bottom: 22px;
+  font-size: clamp(32px, 3vw, 44px);
+  font-weight: 400;
+  line-height: 1.1;
+}
+
+.migration-notes ol {
+  margin: 0;
+  padding-left: 32px;
+  font-size: clamp(21px, 1.55vw, 26px);
+  line-height: 1.55;
+}
+
+.migration-notes li + li {
+  margin-top: 12px;
+}
+
+.migration-notes code {
+  padding: 2px 7px 4px;
+  border-radius: 6px;
+  color: #1f4d2b;
+  background: rgba(49, 87, 58, 0.1);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.86em;
+}
+
 .image-dialog {
   width: min(94vw, 1280px);
   max-width: none;
@@ -551,6 +592,28 @@ h1 {
 
   .feature-art-wide img {
     width: min(100%, 430px);
+  }
+
+  .migration-notes {
+    padding: 0 22px 54px;
+  }
+
+  .migration-notes-inner {
+    padding: 24px 20px;
+  }
+
+  .migration-notes h2 {
+    margin-bottom: 16px;
+    font-size: 30px;
+  }
+
+  .migration-notes ol {
+    padding-left: 24px;
+    font-size: 20px;
+  }
+
+  .migration-notes code {
+    word-break: break-all;
   }
 }
 

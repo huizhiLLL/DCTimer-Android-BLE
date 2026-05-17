@@ -103,6 +103,20 @@
           </div>
         </article>
       </section>
+      <section class="migration-notes" aria-labelledby="migration-notes-title">
+        <div class="migration-notes-inner">
+          <h2 id="migration-notes-title">说明</h2>
+          <ol>
+            <li>DCTimer-BLE 与原 DCTimer 是不同的包名，无需担心安装覆盖或冲突。</li>
+            <li>DCTimer-BLE 兼容原 DCTimer 的数据，只需从原软件导出再导入即可完成数据迁移。</li>
+            <li>
+              某些设备下 DCTimer 可能会出现数据导出失败问题。建议将导出时的路径删除
+              <code>DCTimer/</code>，即留下 <code>/storage/emulated/0/database.db</code>；
+              导入时在手机存储的根路径下找到 db 文件即可。
+            </li>
+          </ol>
+        </div>
+      </section>
       <footer class="site-footer">
         <p>基于原 DCTimer 开源仓库改进，GPL v3 开源，欢迎 issue/pr</p>
         <p>问题反馈交流群：1057871931</p>
