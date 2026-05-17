@@ -2,6 +2,7 @@ package com.dctimer.dialog;
 
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -90,6 +91,13 @@ public class KeypadDialog {
     public KeypadDialog setGravity(int animation, int gravity) {
         window.setWindowAnimations(animation);  //添加动画
         window.setGravity(gravity);             //底部
+        return this;
+    }
+
+    public KeypadDialog setOnDismissListener(DialogInterface.OnDismissListener listener) {
+        if (mDialog != null) {
+            mDialog.setOnDismissListener(listener);
+        }
         return this;
     }
 

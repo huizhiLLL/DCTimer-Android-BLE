@@ -105,6 +105,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private ProgressBar pbScan;
     private TextView tvTest;
     private Button btnScan;
+    private KeypadDialog inputTimeDialog;
     private final Runnable stopBleScanRunnable = new Runnable() {
         @Override
         public void run() {
@@ -875,6 +876,15 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         } catch (Exception e) {
             Toast.makeText(context, R.string.check_update_failed, Toast.LENGTH_SHORT).show();
         }
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (curTab == 0 && enterTime == 1 && inputTimeDialog == null && KeypadView.isManualTimeInputKey(event)) {
+            inputTime(event);
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
     }
 
     private static class UpdateInfo {
@@ -4270,8 +4280,21 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     }
 
     private void inputTime() {
+        inputTime(null);
+    }
+
+    private void inputTime(KeyEvent firstKeyEvent) {
+        if (inputTimeDialog != null) return;
         final KeypadDialog dialog = new KeypadDialog(this);
-        dialog.getKeypad().setOnClickListener(new KeypadView.OnClickListener() {
+        inputTimeDialog = dialog;
+        dialog.setOnDismissListener(new DialogInterface.OnDismissListener() {
+            @Override
+            public void onDismiss(DialogInterface dialogInterface) {
+                inputTimeDialog = null;
+            }
+        });
+        KeypadView keypad = dialog.getKeypad();
+        keypad.setOnClickListener(new KeypadView.OnClickListener() {
             @Override
             public void onFinish(String time, int penalty) {
                 dialog.dismiss();
@@ -4288,6 +4311,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 dialog.dismiss();
             }
         });
+        if (firstKeyEvent != null) {
+            keypad.handleKeyEvent(firstKeyEvent);
+        }
     }
 
     public void sayAlert(int id) {
