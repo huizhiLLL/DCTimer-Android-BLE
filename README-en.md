@@ -58,6 +58,7 @@
 
 - [DCTimer-Android](https://github.com/MeigenChou/DCTimer-Android): original DCTimer-Android repository
 - [cstimer](https://github.com/cs0x7f/cstimer): smart cube protocol reference
+- [smartcube-web-bluetooth](https://github.com/poliva/smartcube-web-bluetooth)：smart cube protocol reference
 - [qiyi_smartcube_protocol](https://codeberg.org/Flying-Toast/qiyi_smartcube_protocol): smart cube protocol reference
 - [CubicTimer](https://github.com/hato-ya/CubicTimer): QiYi Smart Timer integration reference
 - [Miaoyan](https://miaoyan.app): official website design reference

@@ -57,6 +57,7 @@
 
 - [DCTimer-Android](https://github.com/MeigenChou/DCTimer-Android)：DCTimer-Android 原仓库
 - [cstimer](https://github.com/cs0x7f/cstimer)：智能魔方协议参考
+- [smartcube-web-bluetooth](https://github.com/poliva/smartcube-web-bluetooth)：智能魔方协议参考
 - [qiyi_smartcube_protocol](https://codeberg.org/Flying-Toast/qiyi_smartcube_protocol)：智能魔方协议参考
 - [CubicTimer](https://github.com/hato-ya/CubicTimer)：奇艺智能计时器接入参考
 - [妙言](https://miaoyan.app)：官网设计参考
