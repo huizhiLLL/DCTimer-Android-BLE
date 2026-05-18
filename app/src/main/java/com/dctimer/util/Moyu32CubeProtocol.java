@@ -4,6 +4,7 @@ import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
+import android.os.SystemClock;
 import android.text.TextUtils;
 import android.util.Log;
 
@@ -40,7 +41,7 @@ public class Moyu32CubeProtocol implements SmartCubeProtocol {
 
     private int moveCnt = -1;
     private int prevMoveCnt = -1;
-    private long lastOrientationEmitTime;
+    private long lastOrientationEmitElapsedRealtime;
 
     public Moyu32CubeProtocol(MainActivity context, SmartCube smartCube) {
         this.context = context;
@@ -257,16 +258,17 @@ public class Moyu32CubeProtocol implements SmartCubeProtocol {
         if (decoded == null || decoded.length < 17) {
             return;
         }
-        long now = System.currentTimeMillis();
-        if (now - lastOrientationEmitTime < 45L) {
+        long elapsedNow = SystemClock.elapsedRealtime();
+        if (elapsedNow - lastOrientationEmitElapsedRealtime < 45L) {
             return;
         }
-        lastOrientationEmitTime = now;
+        lastOrientationEmitElapsedRealtime = elapsedNow;
+        long timestamp = System.currentTimeMillis();
         int w = readInt16LE(decoded, 3);
         int x = readInt16LE(decoded, 7);
         int y = readInt16LE(decoded, 11);
         int z = readInt16LE(decoded, 15);
-        smartCube.setOrientation(new SmartCubeOrientation(w, x, z, -y, now, SmartCubeOrientation.SOURCE_QUATERNION));
+        smartCube.setOrientation(new SmartCubeOrientation(w, x, z, -y, timestamp, SmartCubeOrientation.SOURCE_QUATERNION));
     }
 
     private int readInt16LE(byte[] data, int offset) {
