@@ -64,6 +64,7 @@ public class BluetoothTools {
     private int connectedIndex;
     private SmartCube smartCube;
     private SmartCube.StateChangedCallback stateChangedCallback;
+    private SmartCube.OrientationChangedCallback orientationChangedCallback;
     private BluetoothGatt mBluetoothGatt;
     private BluetoothGattService service;
     private SmartCubeProtocol smartCubeProtocol;
@@ -270,6 +271,10 @@ public class BluetoothTools {
 
     public void setCubeStateChangedCallback(SmartCube.StateChangedCallback callback) {
         this.stateChangedCallback = callback;
+    }
+
+    public void setCubeOrientationChangedCallback(SmartCube.OrientationChangedCallback callback) {
+        this.orientationChangedCallback = callback;
     }
 
     public void setTimerStateCallback(SmartTimerProtocol.StateCallback callback) {
@@ -565,6 +570,7 @@ public class BluetoothTools {
                 smartCube.setType(bleDeviceType);
                 smartCube.setDeviceName(gatt.getDevice().getName());
                 smartCube.setStateChangedCallback(stateChangedCallback);
+                smartCube.setOrientationChangedCallback(orientationChangedCallback);
                 smartCubeProtocol = createSmartCubeProtocol(bleDeviceType, smartCube);
                 service = GanCubeProtocol.findPrimaryService(gatt);
             } else if (bleDeviceType == BLEDevice.TYPE_MOYU32_CUBE) {
@@ -572,6 +578,7 @@ public class BluetoothTools {
                 smartCube.setType(bleDeviceType);
                 smartCube.setDeviceName(gatt.getDevice().getName());
                 smartCube.setStateChangedCallback(stateChangedCallback);
+                smartCube.setOrientationChangedCallback(orientationChangedCallback);
                 smartCubeProtocol = createSmartCubeProtocol(bleDeviceType, smartCube);
                 service = gatt.getService(Moyu32CubeProtocol.SERVICE_UUID);
             } else if (bleDeviceType == BLEDevice.TYPE_QIYI_CUBE) {
@@ -579,6 +586,7 @@ public class BluetoothTools {
                 smartCube.setType(bleDeviceType);
                 smartCube.setDeviceName(gatt.getDevice().getName());
                 smartCube.setStateChangedCallback(stateChangedCallback);
+                smartCube.setOrientationChangedCallback(orientationChangedCallback);
                 smartCubeProtocol = createSmartCubeProtocol(bleDeviceType, smartCube);
                 service = gatt.getService(QiyiCubeProtocol.SERVICE_UUID);
             } else if (bleDeviceType == BLEDevice.TYPE_QIYI_TIMER) {

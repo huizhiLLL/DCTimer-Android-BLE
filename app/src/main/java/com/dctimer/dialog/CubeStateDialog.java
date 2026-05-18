@@ -14,6 +14,7 @@ import android.widget.TextView;
 import com.dctimer.R;
 import com.dctimer.activity.MainActivity;
 import com.dctimer.model.SmartCube;
+import com.dctimer.model.SmartCubeOrientation;
 import com.dctimer.view.SmartCube3DView;
 import com.dctimer.view.SmartCubeImageView;
 
@@ -56,6 +57,17 @@ public class CubeStateDialog extends DialogFragment {
                 tvBattery.setText(batteryValue + "%");
                 setBatteryImage(batteryValue);
                 setImage();
+            }
+        });
+        Button btResetOrientation = view.findViewById(R.id.btn_reset_orientation);
+        btResetOrientation.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (getActivity() instanceof MainActivity) {
+                    ((MainActivity) getActivity()).resetSmartCubeOrientationViews();
+                } else {
+                    resetOrientationView();
+                }
             }
         });
         Button btMarkSolve = view.findViewById(R.id.bt_solved);
@@ -128,6 +140,7 @@ public class CubeStateDialog extends DialogFragment {
                     imageView.setVisibility(View.GONE);
                 }
                 cube3DView.showCubeState(currentCube.getCubeState());
+                cube3DView.setDeviceOrientation(currentCube.getOrientation());
             } else if (imageView != null) {
                 imageView.setVisibility(View.VISIBLE);
                 imageView.showCubeState(currentCube.getCubeState());
@@ -155,6 +168,18 @@ public class CubeStateDialog extends DialogFragment {
             cube3DView.animateMove(fromState, toState, move);
         } else if (imageView != null) {
             imageView.animateMove(fromState, toState, move);
+        }
+    }
+
+    public void updateOrientation(SmartCubeOrientation orientation) {
+        if (cube3DView != null && orientation != null) {
+            cube3DView.setDeviceOrientation(orientation);
+        }
+    }
+
+    public void resetOrientationView() {
+        if (cube3DView != null) {
+            cube3DView.resetOrientationToWhiteTopGreenFront();
         }
     }
 
