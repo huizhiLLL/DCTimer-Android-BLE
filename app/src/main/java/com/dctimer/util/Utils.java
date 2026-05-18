@@ -752,7 +752,7 @@ public class Utils {
                 f[i] = 6;
             }
         }
-        int[] color = {Color.WHITE, Color.RED, 0xff009900, Color.YELLOW, 0xffff9900, Color.BLUE, Color.GRAY};
+        int[] color = {Color.WHITE, Color.RED, 0xff00b84a, 0xffffd400, 0xffff5c00, 0xff0080ff, Color.GRAY};
         Bitmap bitmap = Bitmap.createBitmap(APP.getPixel(245), APP.getPixel(183), Bitmap.Config.ARGB_8888);
         Canvas c = new Canvas(bitmap);
         c.drawColor(0);
@@ -844,13 +844,13 @@ public class Utils {
             case 'R':
                 return 0xfff00000;
             case 'F':
-                return 0xff00aa00;
+                return 0xff00b84a;
             case 'D':
-                return Color.YELLOW;
+                return 0xffffd400;
             case 'L':
-                return 0xffff8800;
+                return 0xffff5c00;
             case 'B':
-                return 0xff0033cc;
+                return 0xff0080ff;
             default:
                 return 0xff888888;
         }
