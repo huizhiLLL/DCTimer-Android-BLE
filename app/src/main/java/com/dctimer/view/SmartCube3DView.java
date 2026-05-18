@@ -19,8 +19,7 @@ import com.dctimer.model.SmartCubeOrientation;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Arrays;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
@@ -41,6 +40,13 @@ public class SmartCube3DView extends GLSurfaceView {
     private int touchSlop;
     private long lastTapTime;
     private OnDoubleTapListener onDoubleTapListener;
+    private final Runnable singleTapRunnable = new Runnable() {
+        @Override
+        public void run() {
+            lastTapTime = 0L;
+            performClick();
+        }
+    };
 
     public SmartCube3DView(Context context) {
         this(context, null);
@@ -206,6 +212,7 @@ public class SmartCube3DView extends GLSurfaceView {
     @Override
     protected void onDetachedFromWindow() {
         stopAnimator();
+        removeCallbacks(singleTapRunnable);
         super.onDetachedFromWindow();
     }
 
@@ -226,6 +233,7 @@ public class SmartCube3DView extends GLSurfaceView {
         long now = SystemClock.uptimeMillis();
         if (now - lastTapTime <= ViewConfiguration.getDoubleTapTimeout()) {
             lastTapTime = 0L;
+            removeCallbacks(singleTapRunnable);
             if (onDoubleTapListener != null) {
                 onDoubleTapListener.onDoubleTap(this);
             } else {
@@ -234,7 +242,8 @@ public class SmartCube3DView extends GLSurfaceView {
             return;
         }
         lastTapTime = now;
-        performClick();
+        removeCallbacks(singleTapRunnable);
+        postDelayed(singleTapRunnable, ViewConfiguration.getDoubleTapTimeout());
     }
 
     private String sanitizeFacelets(String facelets) {
@@ -259,6 +268,8 @@ public class SmartCube3DView extends GLSurfaceView {
         private static final float CUBIE_EDGE_CENTER_RADIUS = 0.30f;
         private static final float CUBIE_CENTER_FACE_RADIUS = 0.40f;
         private static final int ROUNDED_CORNER_SEGMENTS = 5;
+        private static final int ROUNDED_RECT_POINT_COUNT = (ROUNDED_CORNER_SEGMENTS + 1) * 4;
+        private static final int ROUNDED_RECT_FLOAT_COUNT = ROUNDED_RECT_POINT_COUNT * 9;
         private static final float MAX_VIEW_PITCH = 115f;
         private static final String VERTEX_SHADER =
                 "uniform mat4 uMvpMatrix;" +
@@ -308,6 +319,15 @@ public class SmartCube3DView extends GLSurfaceView {
         private final float[] vpMatrix = new float[16];
         private final float[] mvpMatrix = new float[16];
         private final float[] quad = new float[18];
+        private final float[] roundedRectVertices = new float[ROUNDED_RECT_FLOAT_COUNT];
+        private final Vec3[] roundedRectPoints = new Vec3[ROUNDED_RECT_POINT_COUNT];
+        private final FloatBuffer quadBuffer = ByteBuffer.allocateDirect(quad.length * 4)
+                .order(ByteOrder.nativeOrder())
+                .asFloatBuffer();
+        private final FloatBuffer roundedRectBuffer = ByteBuffer.allocateDirect(roundedRectVertices.length * 4)
+                .order(ByteOrder.nativeOrder())
+                .asFloatBuffer();
+        private final Cubie[] cubies = createCubies();
         private String cubeState = SOLVED_FACELET;
         private String animationStartState;
         private String animationEndState;
@@ -434,7 +454,7 @@ public class SmartCube3DView extends GLSurfaceView {
         }
 
         private void drawCube(String state, MoveSpec moveSpec, float moveProgress) {
-            Cubie[] cubies = buildCubies(state);
+            populateCubies(state);
             for (Cubie cubie : cubies) {
                 drawCubie(cubie, moveSpec, moveProgress);
             }
@@ -561,53 +581,54 @@ public class SmartCube3DView extends GLSurfaceView {
 
         private void drawRoundedRect(Vec3 center, Vec3 u, Vec3 v, Vec3 normal,
                                      float halfWidth, float halfHeight, CornerRadii radii, int color) {
-            List<Vec3> points = buildRoundedRectPoints(center, u, v, halfWidth, halfHeight, radii);
-            for (int i = 0; i < points.size(); i++) {
-                Vec3 p1 = points.get(i);
-                Vec3 p2 = points.get((i + 1) % points.size());
-                putTriangle(center, p1, p2, 0);
-                FloatBuffer buffer = ByteBuffer.allocateDirect(quad.length * 4)
-                        .order(ByteOrder.nativeOrder())
-                        .asFloatBuffer();
-                buffer.put(quad);
-                buffer.position(0);
-                GLES20.glVertexAttribPointer(positionHandle, 3, GLES20.GL_FLOAT, false, 0, buffer);
-                GLES20.glEnableVertexAttribArray(positionHandle);
-                setColorUniform(color, normal);
-                GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 3);
-                GLES20.glDisableVertexAttribArray(positionHandle);
+            int pointCount = buildRoundedRectPoints(center, u, v, halfWidth, halfHeight, radii);
+            if (pointCount == 0) {
+                return;
             }
+            int floatCount = 0;
+            for (int i = 0; i < pointCount; i++) {
+                Vec3 p1 = roundedRectPoints[i];
+                Vec3 p2 = roundedRectPoints[(i + 1) % pointCount];
+                putTriangle(center, p1, p2, roundedRectVertices, floatCount);
+                floatCount += 9;
+            }
+            drawVertices(roundedRectBuffer, roundedRectVertices, floatCount, pointCount * 3, color, normal);
         }
 
-        private List<Vec3> buildRoundedRectPoints(Vec3 center, Vec3 u, Vec3 v,
-                                                  float halfWidth, float halfHeight, CornerRadii radii) {
-            List<Vec3> points = new ArrayList<>(ROUNDED_CORNER_SEGMENTS * 4 + 4);
+        private int buildRoundedRectPoints(Vec3 center, Vec3 u, Vec3 v,
+                                           float halfWidth, float halfHeight, CornerRadii radii) {
             float maxRadius = Math.min(halfWidth, halfHeight) * 0.86f;
             float topRightRadius = Math.min(radii.topRight, maxRadius);
             float topLeftRadius = Math.min(radii.topLeft, maxRadius);
             float bottomLeftRadius = Math.min(radii.bottomLeft, maxRadius);
             float bottomRightRadius = Math.min(radii.bottomRight, maxRadius);
-            addCornerPoints(points, center, u, v, halfWidth - topRightRadius, halfHeight - topRightRadius,
+            int pointCount = 0;
+            pointCount = addCornerPoints(pointCount, center, u, v,
+                    halfWidth - topRightRadius, halfHeight - topRightRadius,
                     topRightRadius, 0f, 90f);
-            addCornerPoints(points, center, u, v, -halfWidth + topLeftRadius, halfHeight - topLeftRadius,
+            pointCount = addCornerPoints(pointCount, center, u, v,
+                    -halfWidth + topLeftRadius, halfHeight - topLeftRadius,
                     topLeftRadius, 90f, 180f);
-            addCornerPoints(points, center, u, v, -halfWidth + bottomLeftRadius, -halfHeight + bottomLeftRadius,
+            pointCount = addCornerPoints(pointCount, center, u, v,
+                    -halfWidth + bottomLeftRadius, -halfHeight + bottomLeftRadius,
                     bottomLeftRadius, 180f, 270f);
-            addCornerPoints(points, center, u, v, halfWidth - bottomRightRadius, -halfHeight + bottomRightRadius,
+            pointCount = addCornerPoints(pointCount, center, u, v,
+                    halfWidth - bottomRightRadius, -halfHeight + bottomRightRadius,
                     bottomRightRadius, 270f, 360f);
-            return points;
+            return pointCount;
         }
 
-        private void addCornerPoints(List<Vec3> points, Vec3 center, Vec3 u, Vec3 v,
-                                     float cornerU, float cornerV, float radius,
-                                     float startDegrees, float endDegrees) {
+        private int addCornerPoints(int pointCount, Vec3 center, Vec3 u, Vec3 v,
+                                    float cornerU, float cornerV, float radius,
+                                    float startDegrees, float endDegrees) {
             for (int i = 0; i <= ROUNDED_CORNER_SEGMENTS; i++) {
                 float t = (float) i / ROUNDED_CORNER_SEGMENTS;
                 float radians = (float) Math.toRadians(startDegrees + (endDegrees - startDegrees) * t);
                 float localU = cornerU + (float) Math.cos(radians) * radius;
                 float localV = cornerV + (float) Math.sin(radians) * radius;
-                points.add(center.add(u.scale(localU)).add(v.scale(localV)));
+                roundedRectPoints[pointCount++] = center.add(u.scale(localU)).add(v.scale(localV));
             }
+            return pointCount;
         }
 
         private void drawQuad(Vec3 center, Vec3 u, Vec3 v, Vec3 normal, float halfSize, int color) {
@@ -617,28 +638,39 @@ public class SmartCube3DView extends GLSurfaceView {
             Vec3 p3 = center.add(u.scale(-halfSize)).add(v.scale(halfSize));
             putTriangle(p0, p1, p2, 0);
             putTriangle(p0, p2, p3, 9);
-            FloatBuffer buffer = ByteBuffer.allocateDirect(quad.length * 4)
-                    .order(ByteOrder.nativeOrder())
-                    .asFloatBuffer();
-            buffer.put(quad);
+            drawVertices(quadBuffer, quad, quad.length, 6, color, normal);
+        }
+
+        private void putTriangle(Vec3 p0, Vec3 p1, Vec3 p2, int offset) {
+            putTriangle(p0, p1, p2, quad, offset);
+        }
+
+        private void putTriangle(Vec3 p0, Vec3 p1, Vec3 p2, float[] target, int offset) {
+            putPoint(p0, target, offset);
+            putPoint(p1, target, offset + 3);
+            putPoint(p2, target, offset + 6);
+        }
+
+        private void putPoint(Vec3 point, int offset) {
+            putPoint(point, quad, offset);
+        }
+
+        private void putPoint(Vec3 point, float[] target, int offset) {
+            target[offset] = point.x;
+            target[offset + 1] = point.y;
+            target[offset + 2] = point.z;
+        }
+
+        private void drawVertices(FloatBuffer buffer, float[] vertices, int floatCount,
+                                  int vertexCount, int color, Vec3 normal) {
+            buffer.clear();
+            buffer.put(vertices, 0, floatCount);
             buffer.position(0);
             GLES20.glVertexAttribPointer(positionHandle, 3, GLES20.GL_FLOAT, false, 0, buffer);
             GLES20.glEnableVertexAttribArray(positionHandle);
             setColorUniform(color, normal);
-            GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, 6);
+            GLES20.glDrawArrays(GLES20.GL_TRIANGLES, 0, vertexCount);
             GLES20.glDisableVertexAttribArray(positionHandle);
-        }
-
-        private void putTriangle(Vec3 p0, Vec3 p1, Vec3 p2, int offset) {
-            putPoint(p0, offset);
-            putPoint(p1, offset + 3);
-            putPoint(p2, offset + 6);
-        }
-
-        private void putPoint(Vec3 point, int offset) {
-            quad[offset] = point.x;
-            quad[offset + 1] = point.y;
-            quad[offset + 2] = point.z;
         }
 
         private void setColorUniform(int color, Vec3 normal) {
@@ -689,26 +721,32 @@ public class SmartCube3DView extends GLSurfaceView {
             }
         }
 
-        private Cubie[] buildCubies(String state) {
-            List<Cubie> cubies = new ArrayList<>(26);
+        private Cubie[] createCubies() {
+            Cubie[] result = new Cubie[26];
+            int index = 0;
             for (int x = -1; x <= 1; x++) {
                 for (int y = -1; y <= 1; y++) {
                     for (int z = -1; z <= 1; z++) {
                         if (x == 0 && y == 0 && z == 0) {
                             continue;
                         }
-                        Cubie cubie = new Cubie(x, y, z);
-                        if (y == 1) cubie.colors[0] = faceColor(state.charAt(faceletIndex(0, x, y, z)));
-                        if (x == 1) cubie.colors[1] = faceColor(state.charAt(faceletIndex(1, x, y, z)));
-                        if (z == 1) cubie.colors[2] = faceColor(state.charAt(faceletIndex(2, x, y, z)));
-                        if (y == -1) cubie.colors[3] = faceColor(state.charAt(faceletIndex(3, x, y, z)));
-                        if (x == -1) cubie.colors[4] = faceColor(state.charAt(faceletIndex(4, x, y, z)));
-                        if (z == -1) cubie.colors[5] = faceColor(state.charAt(faceletIndex(5, x, y, z)));
-                        cubies.add(cubie);
+                        result[index++] = new Cubie(x, y, z);
                     }
                 }
             }
-            return cubies.toArray(new Cubie[0]);
+            return result;
+        }
+
+        private void populateCubies(String state) {
+            for (Cubie cubie : cubies) {
+                Arrays.fill(cubie.colors, 0);
+                if (cubie.y == 1) cubie.colors[0] = faceColor(state.charAt(faceletIndex(0, cubie.x, cubie.y, cubie.z)));
+                if (cubie.x == 1) cubie.colors[1] = faceColor(state.charAt(faceletIndex(1, cubie.x, cubie.y, cubie.z)));
+                if (cubie.z == 1) cubie.colors[2] = faceColor(state.charAt(faceletIndex(2, cubie.x, cubie.y, cubie.z)));
+                if (cubie.y == -1) cubie.colors[3] = faceColor(state.charAt(faceletIndex(3, cubie.x, cubie.y, cubie.z)));
+                if (cubie.x == -1) cubie.colors[4] = faceColor(state.charAt(faceletIndex(4, cubie.x, cubie.y, cubie.z)));
+                if (cubie.z == -1) cubie.colors[5] = faceColor(state.charAt(faceletIndex(5, cubie.x, cubie.y, cubie.z)));
+            }
         }
 
         private int faceletIndex(int face, int x, int y, int z) {
