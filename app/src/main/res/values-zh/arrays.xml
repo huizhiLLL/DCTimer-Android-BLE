@@ -383,7 +383,8 @@
     </array>
 
     <array name="opt_sort_order">
-        <item>默认</item>
+        <item>默认（最新在下）</item>
+        <item>最新在上</item>
         <item>成绩</item>
         <item>成绩（降序）</item>
         <item>滚动平均1</item>
@@ -393,7 +394,8 @@
     </array>
 
     <array name="opt_sort_order2">
-        <item>默认</item>
+        <item>默认（最新在下）</item>
+        <item>最新在上</item>
         <item>成绩</item>
         <item>成绩（降序）</item>
     </array>

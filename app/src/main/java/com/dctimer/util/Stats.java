@@ -2,6 +2,7 @@ package com.dctimer.util;
 
 import android.util.Log;
 
+import static com.dctimer.APP.SORT_LATEST_FIRST;
 import static com.dctimer.APP.sortType;
 import static com.dctimer.APP.timerAccuracy;
 import static com.dctimer.util.StringUtils.timeToString;
@@ -346,6 +347,10 @@ public class Stats {
             sortIdx = new int[len * 3 / 2];
         }
         for (int i = 0; i < len; i++) sortIdx[i] = i;
+        if (sortType == SORT_LATEST_FIRST) {
+            for (int i = 0; i < len; i++) sortIdx[i] = len - 1 - i;
+            return;
+        }
         if (sortType < 0) {
             sortPbRecords(-sortType - 1, len);
             return;

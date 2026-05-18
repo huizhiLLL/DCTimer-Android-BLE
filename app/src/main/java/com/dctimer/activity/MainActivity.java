@@ -436,6 +436,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         if (multiPhase != 0) {
             result.calcMpMean();
         }
+        if (sortType != 0) result.sortResult();
 
         Utils.setEgOll();
         setViews();
@@ -445,6 +446,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
         resAdapter = new TimesAdapter(this, result);
         lvResult.setAdapter(resAdapter);
+        scrollResultToLatest();
         inspectionAlertPlayer = new InspectionAlertPlayer(this);
         setScramble();
 
@@ -678,21 +680,26 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 Utils.showKeyboard(editText);
                 break;
             case R.id.action_sort:  //TODO 排序方式
-                new AlertDialog.Builder(context).setTitle(R.string.action_sort).setSingleChoiceItems(multiPhase > 0 ? R.array.opt_sort_order2 : R.array.opt_sort_order, sortType, new DialogInterface.OnClickListener() {
+                new AlertDialog.Builder(context).setTitle(R.string.action_sort).setSingleChoiceItems(multiPhase > 0 ? R.array.opt_sort_order2 : R.array.opt_sort_order, getSortOptionIndex(), new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialogInterface, int i) {
                         dialogInterface.dismiss();
                         llSearch.setVisibility(View.GONE);
                         llSession.setVisibility(View.VISIBLE);
                         Utils.hideKeyboard(editSearch);
-                        sortType = i;
+                        sortType = getSortTypeFromOption(i);
+                        if (isGlobalResultOrder(sortType)) {
+                            resultOrderType = sortType;
+                            setPref("resultorder", resultOrderType);
+                        }
                         //Log.w("dct", "sort" + i);
                         if (sortType != 0) {
                             result.sortResult();
                         }
                         setResultTitle();
                         resAdapter.setHighlight(-1);
-                        lvResult.setSelection(0);
+                        if (isGlobalResultOrder(sortType)) scrollResultToLatest();
+                        else lvResult.setSelection(0);
                     }
                 }).setNegativeButton(R.string.btn_cancel, null).show();
                 break;
@@ -809,7 +816,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 if (multiPhase > 0) result.calcMpMean();
                 if (sortType != 0) result.sortResult();
                 resAdapter.reload();
-                lvResult.setSelection(resAdapter.getCount() - 1);
+                lvResult.setSelection(sortType == SORT_LATEST_FIRST ? 0 : resAdapter.getCount() - 1);
                 newScramble();
                 setStatsLabel();
                 break;
@@ -983,7 +990,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         } else if (requestCode == 2) {  //更改分组
             boolean mod = data.getBooleanExtra("mod", false);
             if (mod) {
-                sortType = 0;
                 sessionIdx = data.getIntExtra("select", 0);
                 changeSession();
             }
@@ -2172,7 +2178,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                     new AlertDialog.Builder(context).setItems(list, new DialogInterface.OnClickListener() {
                         @Override
                         public void onClick(DialogInterface dialogInterface, int i) {
-                            sortType = 0;
                             sessionIdx = i;
                             changeSession();
                         }
@@ -2217,7 +2222,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                                 .setNegativeButton(R.string.btn_cancel, null)
                                 .setPositiveButton(R.string.btn_ok, new DialogInterface.OnClickListener() {
                                     public void onClick(DialogInterface arg0, int arg1) {
-                                        sortType = 0;
                                         deleteAll();
                                         setStatsLabel();
                                     }
@@ -2277,8 +2281,9 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                                     btnSessionMean.setText(getString(R.string.session_mean, result.getSessionMean()));
                                     result.calcAvg();
                                     if (multiPhase > 0) result.calcMpMean();
+                                    resetSortToGlobalOrder();
                                     resAdapter.reload();
-                                    lvResult.setSelection(0);
+                                    scrollResultToLatest();
                                     setPref("session", sessionIdx);
                                     setStatsLabel();
                                     break;
@@ -2559,14 +2564,13 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                         if (i == 0) {
                             result.clearMulTime();
                             tvMulPhase.setText("");
-                            sortType = 0;
                         } else {
                             result.initMulTime();
                             if (result.length() > 0)
                                 result.getMulTime();
-                            sortType = 0;
                             result.calcMpMean();
                         }
+                        resetSortToGlobalOrder();
                         setPref("multp", i);
                         sessionManager.setMultiPhase(sessionIdx, i);
                         resAdapter.reload();
@@ -3498,7 +3502,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         edit.remove("vibtime");	edit.remove("bgcolor");	edit.remove("ssvalue");
         edit.remove("sensity");	edit.remove("monoscr");	edit.remove("showscr");
         edit.remove("timerupd");	edit.remove("timeform");    edit.remove("showstat");
-        edit.remove("screenori");
+        edit.remove("screenori");   edit.remove("resultorder");
         edit.apply();
     }
 
@@ -4067,11 +4071,11 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         if (mp > 0) {
             result.calcMpMean();
         }
-        sortType = 0;
+        resetSortToGlobalOrder();
         setResultTitle();
         resAdapter.reload();
         btnSessionMean.setText(getString(R.string.session_mean, result.getSessionMean()));
-        lvResult.setSelection(0);
+        scrollResultToLatest();
         setPref("session", sessionIdx);
         int puzzle = sessionManager.getPuzzle(sessionIdx);
         if (puzzle != scrambleIdx && scrambleState == SCRAMBLE_DONE) {
@@ -4196,7 +4200,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                             new AlertDialog.Builder(context).setTitle(R.string.confirm_clear_session)
                                 .setPositiveButton(R.string.btn_ok, new DialogInterface.OnClickListener() {
                                     public void onClick(DialogInterface dialog, int which) {
-                                        sortType = 0;
                                         deleteAll();
                                         setStatsLabel();
                                     }
@@ -4214,7 +4217,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                         new AlertDialog.Builder(context).setTitle(R.string.select_session).setItems(list, new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface dialogInterface, int i) {
-                                sortType = 0;
                                 sessionIdx = i;
                                 changeSession();
                             }
@@ -4388,6 +4390,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         if (sortType == 0)
             //rvResult.scrollToPosition(resAdapter.getCount() - 1);
             lvResult.setSelection(resAdapter.getCount() - 1);
+        else if (sortType == SORT_LATEST_FIRST)
+            lvResult.setSelection(0);
         if (result.isSessionBest()) {
             Snackbar.make(frame, getString(R.string.new_session_best) + result.getBestTime(), Snackbar.LENGTH_SHORT).show();
         } else if (result.isAvgBest(0)) {
@@ -4536,7 +4540,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private void deleteAll() {
         result.clear();
         btnSessionMean.setText(getString(R.string.session_mean) + "0/0): N/A (N/A)");
-        sortType = 0;
+        sortType = resultOrderType;
         setResultTitle();
         resAdapter.setLength(0);
         setStatsLabel();
@@ -4592,6 +4596,32 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
             }
             llTitle.addView(tv);
         }
+    }
+
+    private int getSortOptionIndex() {
+        if (sortType == SORT_LATEST_FIRST) return 1;
+        if (sortType > 0) return sortType + 1;
+        return 0;
+    }
+
+    private int getSortTypeFromOption(int option) {
+        if (option == 1) return SORT_LATEST_FIRST;
+        if (option > 1) return option - 1;
+        return 0;
+    }
+
+    private boolean isGlobalResultOrder(int type) {
+        return type == 0 || type == SORT_LATEST_FIRST;
+    }
+
+    private void resetSortToGlobalOrder() {
+        sortType = resultOrderType;
+        if (sortType != 0) result.sortResult();
+    }
+
+    private void scrollResultToLatest() {
+        if (resAdapter.getCount() == 0) return;
+        lvResult.setSelection(sortType == SORT_LATEST_FIRST ? 0 : resAdapter.getCount() - 1);
     }
 
     private void togglePbSort(int column) {

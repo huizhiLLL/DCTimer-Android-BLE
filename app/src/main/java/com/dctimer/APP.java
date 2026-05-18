@@ -88,6 +88,8 @@ public class APP extends Application {
     public static int imageSize;
     public static int[] swipeType = new int[4];
     public static List<String> scrambleList = null;
+    public static final int SORT_LATEST_FIRST = 7;
+    public static int resultOrderType;
     public static int sortType;
     public static String statDetail;
     public static boolean dropToStop;
@@ -138,6 +140,9 @@ public class APP extends Application {
         scrambleIdx = idx << 5 | idx2;
 
         sessionIdx = sp.getInt("session", 0);	// 分组
+        resultOrderType = sp.getInt("resultorder", 0);
+        if (resultOrderType != SORT_LATEST_FIRST) resultOrderType = 0;
+        sortType = resultOrderType;
         for (int i = 0; i < 15; i++) {
             sesionType[i] = sp.getInt("sestype" + i, 32);
             sessionName[i] = sp.getString("sesname" + i, "");
@@ -235,6 +240,7 @@ public class APP extends Application {
         picPath = ""; picUri = "";
         fullScreen = false; screenOn = false; vibrateType = 0;
         vibrateTime = 2; screenOri = 0;
+        resultOrderType = 0; sortType = 0;
         colors[0] = 0xffffffff;	colors[1] = 0xff000000;	colors[2] = 0xffff00ff;
         colors[3] = 0xffee3333;	colors[4] = 0xff009900; colors[5] = 0xffffffff;
         colors[6] = 0xff000000;

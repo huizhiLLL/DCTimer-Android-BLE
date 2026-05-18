@@ -451,7 +451,8 @@
     </array>
 
     <array name="opt_sort_order">
-        <item>Default</item>
+        <item>Default (newest last)</item>
+        <item>Newest first</item>
         <item>Result</item>
         <item>Result (desc)</item>
         <item>Average 1</item>
@@ -461,7 +462,8 @@
     </array>
 
     <array name="opt_sort_order2">
-        <item>Default</item>
+        <item>Default (newest last)</item>
+        <item>Newest first</item>
         <item>Result</item>
         <item>Result (desc)</item>
     </array>
