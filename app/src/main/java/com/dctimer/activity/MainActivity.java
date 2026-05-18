@@ -1865,6 +1865,15 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     }
 
     public void moveCube(SmartCube cube, int move, int time, boolean trackScrambleDeviation) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    moveCube(cube, move, time, trackScrambleDeviation);
+                }
+            });
+            return;
+        }
         String previousState = cube.getCubeState();
         cube.applyMove(move, time, currentScramble.getCubeState());
         updateSmartCubeScrambleProgress(cube, trackScrambleDeviation ? move : -1);
