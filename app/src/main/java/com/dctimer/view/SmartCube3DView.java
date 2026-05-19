@@ -7,11 +7,14 @@ import android.graphics.PixelFormat;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
 import android.opengl.Matrix;
+import android.os.SystemClock;
 import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.ViewConfiguration;
 import android.view.animation.LinearInterpolator;
+
+import com.dctimer.model.SmartCubeOrientation;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -36,6 +39,8 @@ public class SmartCube3DView extends GLSurfaceView {
     private float touchStartY;
     private boolean draggingView;
     private int touchSlop;
+    private long lastTapTime;
+    private OnDoubleTapListener onDoubleTapListener;
 
     public SmartCube3DView(Context context) {
         this(context, null);
@@ -71,6 +76,34 @@ public class SmartCube3DView extends GLSurfaceView {
 
     public void animateMove(String fromState, String toState, int move) {
         animateMove(fromState, toState, move, DEFAULT_ANIMATION_DURATION_MS);
+    }
+
+    public void setDeviceOrientation(final SmartCubeOrientation orientation) {
+        if (orientation == null) {
+            return;
+        }
+        final float[] orientationMatrix = orientation.toMatrix();
+        queueEvent(new Runnable() {
+            @Override
+            public void run() {
+                cubeRenderer.setDeviceOrientation(orientationMatrix);
+            }
+        });
+        requestRender();
+    }
+
+    public void resetOrientationToWhiteTopGreenFront() {
+        queueEvent(new Runnable() {
+            @Override
+            public void run() {
+                cubeRenderer.resetOrientationToWhiteTopGreenFront();
+            }
+        });
+        requestRender();
+    }
+
+    public void setOnDoubleTapListener(OnDoubleTapListener listener) {
+        onDoubleTapListener = listener;
     }
 
     public void animateMove(String fromState, String toState, final int move, long durationMs) {
@@ -149,7 +182,7 @@ public class SmartCube3DView extends GLSurfaceView {
                 return true;
             case MotionEvent.ACTION_UP:
                 if (!draggingView) {
-                    performClick();
+                    handleTap();
                 }
                 if (getParent() != null) {
                     getParent().requestDisallowInterceptTouchEvent(false);
@@ -189,11 +222,30 @@ public class SmartCube3DView extends GLSurfaceView {
         return move >= 0 && move < 18;
     }
 
+    private void handleTap() {
+        long now = SystemClock.uptimeMillis();
+        if (now - lastTapTime <= ViewConfiguration.getDoubleTapTimeout()) {
+            lastTapTime = 0L;
+            if (onDoubleTapListener != null) {
+                onDoubleTapListener.onDoubleTap(this);
+            } else {
+                performClick();
+            }
+            return;
+        }
+        lastTapTime = now;
+        performClick();
+    }
+
     private String sanitizeFacelets(String facelets) {
         if (TextUtils.isEmpty(facelets) || facelets.length() < 54) {
             return null;
         }
         return facelets.substring(0, 54);
+    }
+
+    public interface OnDoubleTapListener {
+        void onDoubleTap(SmartCube3DView view);
     }
 
     private static class CubeRenderer implements Renderer {
@@ -220,6 +272,10 @@ public class SmartCube3DView extends GLSurfaceView {
         private final float[] projectionMatrix = new float[16];
         private final float[] viewMatrix = new float[16];
         private final float[] modelMatrix = new float[16];
+        private final float[] dragMatrix = new float[16];
+        private final float[] deviceOrientationMatrix = new float[16];
+        private final float[] calibrationMatrix = new float[16];
+        private final float[] calibratedDeviceMatrix = new float[16];
         private final float[] vpMatrix = new float[16];
         private final float[] mvpMatrix = new float[16];
         private final float[] quad = new float[18];
@@ -230,6 +286,7 @@ public class SmartCube3DView extends GLSurfaceView {
         private float animationProgress;
         private float viewYaw;
         private float viewPitch;
+        private boolean hasDeviceOrientation;
         private int program;
         private int positionHandle;
         private int colorHandle;
@@ -237,6 +294,8 @@ public class SmartCube3DView extends GLSurfaceView {
 
         @Override
         public void onSurfaceCreated(GL10 gl, EGLConfig config) {
+            Matrix.setIdentityM(calibrationMatrix, 0);
+            Matrix.setIdentityM(deviceOrientationMatrix, 0);
             program = createProgram(VERTEX_SHADER, FRAGMENT_SHADER);
             positionHandle = GLES20.glGetAttribLocation(program, "aPosition");
             colorHandle = GLES20.glGetUniformLocation(program, "uColor");
@@ -251,8 +310,8 @@ public class SmartCube3DView extends GLSurfaceView {
         public void onSurfaceChanged(GL10 gl, int width, int height) {
             GLES20.glViewport(0, 0, width, height);
             float aspect = width > 0 && height > 0 ? (float) width / (float) height : 1f;
-            Matrix.frustumM(projectionMatrix, 0, -aspect, aspect, -1f, 1f, 3f, 18f);
-            Matrix.setLookAtM(viewMatrix, 0, 4.8f, 4.1f, 7.2f, 0f, 0f, 0f, 0f, 1f, 0f);
+            Matrix.frustumM(projectionMatrix, 0, -aspect * 1.18f, aspect * 1.18f, -1.18f, 1.18f, 3f, 20f);
+            Matrix.setLookAtM(viewMatrix, 0, 0f, 4.5f, 8.2f, 0f, 0f, 0f, 0f, 1f, 0f);
             Matrix.multiplyMM(vpMatrix, 0, projectionMatrix, 0, viewMatrix, 0);
             updateMvpMatrix();
         }
@@ -298,10 +357,36 @@ public class SmartCube3DView extends GLSurfaceView {
             updateMvpMatrix();
         }
 
+        void setDeviceOrientation(float[] orientationMatrix) {
+            if (orientationMatrix == null || orientationMatrix.length < 16) {
+                return;
+            }
+            System.arraycopy(orientationMatrix, 0, deviceOrientationMatrix, 0, 16);
+            hasDeviceOrientation = true;
+            updateMvpMatrix();
+        }
+
+        void resetOrientationToWhiteTopGreenFront() {
+            viewYaw = 0f;
+            viewPitch = 0f;
+            if (hasDeviceOrientation) {
+                Matrix.transposeM(calibrationMatrix, 0, deviceOrientationMatrix, 0);
+            } else {
+                Matrix.setIdentityM(calibrationMatrix, 0);
+            }
+            updateMvpMatrix();
+        }
+
         private void updateMvpMatrix() {
-            Matrix.setIdentityM(modelMatrix, 0);
-            Matrix.rotateM(modelMatrix, 0, viewPitch, 1f, 0f, 0f);
-            Matrix.rotateM(modelMatrix, 0, viewYaw, 0f, 1f, 0f);
+            Matrix.setIdentityM(dragMatrix, 0);
+            Matrix.rotateM(dragMatrix, 0, viewPitch, 1f, 0f, 0f);
+            Matrix.rotateM(dragMatrix, 0, viewYaw, 0f, 1f, 0f);
+            if (hasDeviceOrientation) {
+                Matrix.multiplyMM(calibratedDeviceMatrix, 0, calibrationMatrix, 0, deviceOrientationMatrix, 0);
+                Matrix.multiplyMM(modelMatrix, 0, dragMatrix, 0, calibratedDeviceMatrix, 0);
+            } else {
+                System.arraycopy(dragMatrix, 0, modelMatrix, 0, 16);
+            }
             Matrix.multiplyMM(mvpMatrix, 0, vpMatrix, 0, modelMatrix, 0);
         }
 

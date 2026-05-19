@@ -4,11 +4,13 @@ import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
+import android.os.SystemClock;
 import android.text.TextUtils;
 import android.util.Log;
 
 import com.dctimer.activity.MainActivity;
 import com.dctimer.model.SmartCube;
+import com.dctimer.model.SmartCubeOrientation;
 
 import java.security.GeneralSecurityException;
 import java.util.ArrayDeque;
@@ -39,6 +41,7 @@ public class Moyu32CubeProtocol implements SmartCubeProtocol {
 
     private int moveCnt = -1;
     private int prevMoveCnt = -1;
+    private long lastOrientationEmitElapsedRealtime;
 
     public Moyu32CubeProtocol(MainActivity context, SmartCube smartCube) {
         this.context = context;
@@ -176,6 +179,7 @@ public class Moyu32CubeProtocol implements SmartCubeProtocol {
                 handleMove(data);
                 break;
             case 171:
+                handleOrientation(decoded);
                 break;
             default:
                 Log.w(TAG, "未知 MoYu32 消息类型: " + msgType);
@@ -248,6 +252,27 @@ public class Moyu32CubeProtocol implements SmartCubeProtocol {
             context.moveCube(smartCube, move, timeOffsets[i]);
             Log.w(TAG, "MoYu32 move=" + move + " time=" + timeOffsets[i]);
         }
+    }
+
+    private void handleOrientation(byte[] decoded) {
+        if (decoded == null || decoded.length < 17) {
+            return;
+        }
+        long elapsedNow = SystemClock.elapsedRealtime();
+        if (elapsedNow - lastOrientationEmitElapsedRealtime < 45L) {
+            return;
+        }
+        lastOrientationEmitElapsedRealtime = elapsedNow;
+        long timestamp = System.currentTimeMillis();
+        int w = readInt16LE(decoded, 3);
+        int x = readInt16LE(decoded, 7);
+        int y = readInt16LE(decoded, 11);
+        int z = readInt16LE(decoded, 15);
+        smartCube.setOrientation(new SmartCubeOrientation(w, x, z, -y, timestamp, SmartCubeOrientation.SOURCE_QUATERNION));
+    }
+
+    private int readInt16LE(byte[] data, int offset) {
+        return (short) ((data[offset] & 0xff) | ((data[offset + 1] & 0xff) << 8));
     }
 
     private int convertMove(int rawMove) {

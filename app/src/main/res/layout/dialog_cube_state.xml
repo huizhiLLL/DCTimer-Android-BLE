@@ -61,16 +61,27 @@
 
     <com.dctimer.view.SmartCube3DView
         android:id="@+id/gl_cube_state"
-        android:layout_width="220dp"
+        android:layout_width="260dp"
         android:layout_height="250dp"
         android:layout_marginBottom="10dp"/>
 
     <com.dctimer.view.SmartCubeImageView
         android:id="@+id/image_view"
-        android:layout_width="220dp"
+        android:layout_width="260dp"
         android:layout_height="250dp"
         android:layout_marginBottom="10dp"
         android:visibility="gone"/>
+
+    <Button
+        android:id="@+id/btn_reset_orientation"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:layout_marginBottom="2dp"
+        android:background="@color/transparent"
+        android:text="@string/btn_reset_orientation"
+        android:textAllCaps="false"
+        android:textColor="@drawable/button_text_style"
+        android:textSize="15sp"/>
 
     <LinearLayout
         android:layout_width="match_parent"
