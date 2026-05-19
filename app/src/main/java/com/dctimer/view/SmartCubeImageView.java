@@ -363,13 +363,13 @@ public class SmartCubeImageView extends AppCompatImageView {
             case 'R':
                 return 0xffef4444;
             case 'F':
-                return 0xff3f9b46;
+                return 0xff00b84a;
             case 'D':
-                return 0xfff5d142;
+                return 0xffffd400;
             case 'L':
-                return 0xfff28b24;
+                return 0xffff5c00;
             case 'B':
-                return 0xff2d67cf;
+                return 0xff0080ff;
             default:
                 return 0xff8c8c8c;
         }

@@ -27,9 +27,11 @@ public class SmartCube implements Serializable {
     private List<Integer> moveList;
     private String solveStartState;
     private SmartCubeSolveReconstruction reconstruction;
-    private StateChangedCallback callback;
+    private transient StateChangedCallback callback;
     private String targetState;
     private boolean scrambledNotified;
+    private SmartCubeOrientation orientation;
+    private transient OrientationChangedCallback orientationChangedCallback;
 
     public SmartCube() {
         rawData = new ArrayList<>();
@@ -83,6 +85,21 @@ public class SmartCube implements Serializable {
 
     public void setStateChangedCallback(StateChangedCallback callback) {
         this.callback = callback;
+    }
+
+    public void setOrientationChangedCallback(OrientationChangedCallback callback) {
+        this.orientationChangedCallback = callback;
+    }
+
+    public SmartCubeOrientation getOrientation() {
+        return orientation;
+    }
+
+    public void setOrientation(SmartCubeOrientation orientation) {
+        this.orientation = orientation;
+        if (orientationChangedCallback != null) {
+            orientationChangedCallback.onOrientationChanged(this, orientation);
+        }
     }
 
     public int getMovesCount() {
@@ -209,5 +226,9 @@ public class SmartCube implements Serializable {
     public interface StateChangedCallback {
         void onScrambled(SmartCube cube);
         void onSolved(SmartCube cube);
+    }
+
+    public interface OrientationChangedCallback {
+        void onOrientationChanged(SmartCube cube, SmartCubeOrientation orientation);
     }
 }

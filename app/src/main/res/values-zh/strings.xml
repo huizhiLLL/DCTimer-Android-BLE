@@ -135,6 +135,7 @@
     <string name="btn_open">打开</string>
     <string name="btn_scan">扫描</string>
     <string name="btn_cube_reset">重置魔方</string>
+    <string name="btn_reset_orientation">重置姿态</string>
     <string name="btn_refresh">刷新</string>
     <string name="btn_mark_solve">标记为还原状态</string>
     <string name="btn_mark_scramble">标记为正确打乱</string>
